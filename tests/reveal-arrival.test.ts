@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { probeArrivalExpanded, shouldStampGeometryMute } from "../components/chat.tsx";
+import { shouldStampGeometryMute } from "../components/chat.tsx";
 
 /**
  * The geometry-mute's growth rule (flicker round, 2026-09-26): reserve
@@ -24,21 +24,5 @@ describe("shouldStampGeometryMute — when a block resize is our own stretch", (
 
 	it("no growth stamps without a pending question (composer life)", () => {
 		assert.equal(shouldStampGeometryMute(545, 393, false), false);
-	});
-});
-
-/**
- * Probe-question arrival state (flicker round, 2026-09-26): open iff the
- * learner is following at the bottom; scrolled up in history → arrive as
- * the collapsed bar, decided DURING RENDER (the old after-paint effect
- * painted one stale-open frame first).
- */
-describe("probeArrivalExpanded — how a probe question lands", () => {
-	it("at the bottom following along: open", () => {
-		assert.equal(probeArrivalExpanded(true), true);
-	});
-
-	it("scrolled up in history: arrive already-collapsed (owner ruling)", () => {
-		assert.equal(probeArrivalExpanded(false), false);
 	});
 });

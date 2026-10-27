@@ -639,15 +639,13 @@ body {
 :root { --lh-on-green: #ffffff; }
 .dark { --lh-on-green: #0b1f14; }
 
-/* Equations carry the explanation: displayed math in a teacher message is a
-   card in larger type, so it is what the eye lands on. */
+/* Equations carry the explanation: displayed maths in a teacher message is
+   set like a textbook (owner, 2026-10-28) — no box, centred, with room above
+   and below and a touch larger than the text. */
 .lh-source-passage .katex-display {
-	margin: 0.9rem 0;
-	padding: 0.85rem 1.1rem;
-	border: 2px solid var(--border);
-	border-radius: 18px;
-	background: var(--muted);
-	font-size: 1.28em;
+	margin: 1.25rem 0;
+	padding: 0.25rem 0;
+	font-size: 1.15em;
 }
 
 /* Chunky controls: a pressable bottom edge that dips on press. */

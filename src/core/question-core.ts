@@ -193,6 +193,42 @@ export function fillBlankLine(line: string, label: string | undefined, language?
 	return put(bare ? `**${bare}**` : "\\_\\_\\_");
 }
 
+/** Words of a quiz text with maths delimiters and markdown dropped (LaTeX
+ *  commands kept as words, so `\mathbf K` still counts). */
+function quizWords(text: string): string[] {
+	return text.toLowerCase().replace(/\$\$?|\\[()[\]]|[*_`{}]/g, " ").split(/[^\p{L}\p{N}\\^]+/u).filter(Boolean);
+}
+
+/** The checks a multiple-choice question fails when it can be answered
+ *  without the idea (owner, 2026-10-28): its right option repeats the
+ *  teaching nearly word for word (recognition, not understanding), or it
+ *  stands out from the wrong ones by length and detail. Plain choice with
+ *  one right answer only; the tap formats' options are lines by design. */
+export function guessableChoiceProblems(
+	input: { options: Array<{ label: string; value?: string }>; correctAnswer: string | string[]; format?: unknown; type?: unknown },
+	teaching: string,
+): string[] {
+	if (normalizeQuizFormat(input.format) !== "choice") return [];
+	const options = normalizeOptions(input.options);
+	const key = coerceCorrectAnswer(input.correctAnswer, options.map((o) => o.value));
+	const right = options.find((o) => o.value === key[0]);
+	if (key.length !== 1 || !right || options.length < 3) return [];
+	const problems: string[] = [];
+	const words = quizWords(right.label);
+	if (normalizeQuizType(input.type) !== "predict" && words.length >= 6) {
+		const grams = (w: string[]) => w.slice(0, -3).map((_, i) => w.slice(i, i + 4).join(" "));
+		const taught = new Set(grams(quizWords(teaching)));
+		const own = grams(words);
+		if (own.filter((g) => taught.has(g)).length / own.length >= 0.6)
+			problems.push("The right option repeats your teaching almost word for word, so it can be recognised without being understood. Ask the learner to use the idea: a new case, a consequence, or which step fails and why.");
+	}
+	const lengths = options.filter((o) => o !== right).map((o) => quizWords(o.label).length);
+	const mean = lengths.reduce((a, b) => a + b, 0) / lengths.length;
+	if (words.length >= 1.4 * mean && words.length > Math.max(...lengths))
+		problems.push("The right option is the longest and most detailed, so it can be picked without the idea. Give every option the same length, form and level of detail.");
+	return problems;
+}
+
 // The SHARED quiz authoring fields — everything except `nodeId`. The probe
 // and teach agents use DIFFERENT tools under the same name (docs/probe-teach-
 // split.md §1): the prober's quiz has NO nodeId field at all (there is no

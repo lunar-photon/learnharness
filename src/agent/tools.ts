@@ -11,6 +11,7 @@ import {
 	probeQuizInputSchema,
 	quizInputObject,
 	quizInputProblems,
+	guessableChoiceProblems,
 } from "../core/question-core.ts";
 import { filterEnabledTools, type EnabledTools } from "../core/pending.ts";
 import type { JobRecord } from "../core/contracts.ts";
@@ -373,6 +374,15 @@ function nodeIdProblem(ctx: Pick<PlanToolContext, "chatId" | "chatStore">, nodeI
  *  nodeId is REQUIRED (owner ruling 2026-09-26): the untagged ad-hoc quiz is
  *  gone — off-map checks route through ask_user_question, and the teach
  *  seam (first tagged quiz) is structurally guaranteed. */
+/** The teacher's recent prose (its last three messages), for the copied-option check.
+ *  shortcut: reads the persisted record, so a reply still streaming counts only once saved; pass the live turn if copies slip through. */
+function recentTeaching(ctx: Pick<PlanToolContext, "chatId" | "chatStore">): string {
+	const messages = (ctx.chatStore.getChat(ctx.chatId)?.messages ?? []) as Array<{ role?: string; content?: unknown }>;
+	return messages.filter((m) => m.role === "assistant").slice(-3).flatMap((m) =>
+		Array.isArray(m.content) ? m.content.flatMap((c: { type?: string; text?: string }) => (c.type === "text" && c.text ? [c.text] : [])) : [],
+	).join("\n");
+}
+
 export function teachQuizToolFor(ctx: Pick<PlanToolContext, "chatId" | "chatStore">): AgentTool<typeof quizInputObject> {
 	return {
 		name: "quiz",
@@ -382,7 +392,7 @@ export function teachQuizToolFor(ctx: Pick<PlanToolContext, "chatId" | "chatStor
 		prepareArguments: prepareQuestionArguments,
 		executionMode: "sequential",
 		execute: async (_toolCallId, input) => {
-			const problems = [...quizInputProblems(input)];
+			const problems = [...quizInputProblems(input), ...guessableChoiceProblems(input, recentTeaching(ctx))];
 			const nodeIdProblemText = nodeIdProblem(ctx, input.nodeId);
 			if (nodeIdProblemText) problems.push(nodeIdProblemText);
 			if (problems.length > 0) return invalidInputResult("quiz", problems);

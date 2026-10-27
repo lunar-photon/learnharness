@@ -12,7 +12,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { inputAppends } from "../src/core/input-events.ts";
 import { compactAnswerForModel, doubtAnswer } from "../src/core/question-core.ts";
 import type { LhMessage } from "../src/core/native-messages.ts";
-import { DoubtLine } from "../components/doubt-line.tsx";
 import { ChatActionsContext } from "../components/chat.tsx";
 import { ExplanationFeedback } from "../components/explanation-feedback.tsx";
 
@@ -48,10 +47,7 @@ describe("doubts while a question is open", () => {
 });
 
 describe("doubt and quick-reply controls", () => {
-	it("render an accessible doubt line and the quick replies", () => {
-		const line = renderToStaticMarkup(<DoubtLine onAsk={() => {}} />);
-		assert.match(line, /<label[^>]*for="doubt-input"/);
-		assert.match(line, /Stuck\? Ask a doubt/);
+	it("render the quick replies (the composer is the doubt box while a check is open)", () => {
 		const replies = renderToStaticMarkup(
 			<ChatActionsContext.Provider value={{ chatId: "c", syncFromServer: async () => {}, sendText: () => {}, canSendText: true, openSetup: () => {} }}>
 				<ExplanationFeedback messageId="m1" />

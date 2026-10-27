@@ -171,10 +171,8 @@ describe("plan block render", () => {
 		// anchors to its box's midline — the old x=12 left inset is gone.
 		assert.match(html, /<text[^>]*x="48"[^>]*text-anchor="middle"/); // 96/2
 		assert.ok(!/x="12"/.test(html), "no left-inset text");
-		// The in-chat block speaks the dock language (owner, 2026-10-07):
-		// lighter-background boxes like the composer shells — with WHITE
-		// outlines (owner follow-up: gray fill good, box edges stay white).
-		assert.match(html, /<rect[^>]*class="fill-card stroke-white"/);
+		// The in-chat block: card boxes with the app's edge colour, dark text (light theme, 2026-10-28).
+		assert.match(html, /<rect[^>]*class="fill-card stroke-\[var\(--lh-edge\)\]"/);
 		// Two stacked nodes: 2*NODE_H + GAP_Y = 136 extent + GRAPH_PAD on
 		// every side (strokes/glow never clip at the edges). The width
 		// rides the hug now: 96-min boxes, not the old 160 slabs.
@@ -227,11 +225,10 @@ describe("plan popup (live derivation)", () => {
 		assert.match(html, /data-testid="plan-node-a" data-status="visited"/);
 		assert.match(html, /data-testid="plan-node-b" data-status="current"/);
 		assert.match(html, /data-testid="plan-node-c" data-status="upcoming"/);
-		// The current node is the glow target: a faint yellow fill, blurred
-		// so it bleeds over the edges — static, no pulse (owner, round 6).
-		assert.match(html, /fill-yellow-400\/25/);
-		assert.match(html, /feGaussianBlur/);
-		assert.doesNotMatch(html, /animate-pulse/);
+		// The current node is a solid gold box with dark, bold text — readable
+		// on the light theme (owner, 2026-10-28); no blur, no pulse.
+		assert.match(html, /data-status="current"><rect[^>]*class="fill-\[var\(--lh-gold-tint\)\] stroke-\[var\(--lh-gold\)\]"/);
+		assert.doesNotMatch(html, /fill-white|stroke-white|feGaussianBlur|animate-pulse/);
 		// Arrows into not-yet-visited nodes are grayed out (owner, round 6).
 		assert.match(html, /marker-end="url\(#.*-dim\)"/);
 		assert.match(html, /live — statuses derive from your check outcomes/);
@@ -276,7 +273,7 @@ describe("plan popup (live derivation)", () => {
 		assert.equal(dimHeads, 1, "the gray-origin edge dims");
 		assert.equal(whiteHeads, 1, "the both-white edge stays white");
 		assert.match(html, /<path[^>]*class="fill-none stroke-border"/);
-		assert.match(html, /<path[^>]*class="fill-none stroke-white"/);
+		assert.match(html, /<path[^>]*class="fill-none stroke-muted-foreground"/);
 	});
 
 	it("renders the empty state when the session has no plan", () => {

@@ -288,17 +288,9 @@ export function nodeWidth(lines: readonly string[]): number {
 }
 
 /** SVG-unit padding around the layout extent: strokes are centered on the
- *  geometry (half bleeds outside the extent) and the glow halo reaches −4 —
- *  without this pad the outermost node borders clip at the svg edge. */
+ *  geometry (half bleeds outside the extent) — without this pad the
+ *  outermost node borders clip at the svg edge. */
 export const GRAPH_PAD = 8;
-/** The current node's yellow glow: a fill blurred so it bleeds over the
- *  node's edges (owner). A Gaussian's visible spread is ≈3σ, so the glow
- *  reaches GLOW_MARGIN + 3·GLOW_BLUR past the node — any surface that
- *  shows the glow must pad its viewBox by GLOW_REACH or the blur clips
- *  at the frame edge (owner: extend the container padding to fit it). */
-export const GLOW_MARGIN = 8;
-export const GLOW_BLUR = 5;
-export const GLOW_REACH = GLOW_MARGIN + 3 * GLOW_BLUR;
 /** Node titles render at text-xs (12.5px) in svg units. The in-chat block
  *  scales up to fill the column but NEVER past the chat prose size
  *  (--lh-prose-size, 16px — the ladder's reading rung) — the width cap
@@ -438,30 +430,23 @@ export function edgePathD(
 
 // ─── Status styling (the retired panel's color language, unchanged) ──────────
 
-// The simple look (owner, plan-graph round 4): rectangular boxes, white
-// outlines/arrows/text; no fill on visited, today's gray look on upcoming,
-// and the current node carries a faint yellow glow (a blurred yellow fill
-// bleeding over the edges). The IN-CHAT block is monochrome white instead
-// — no status language; the popup/window show the progression.
+// The look follows the app theme (owner, 2026-10-28: white-on-yellow was
+// unreadable): dark text on every box; visited nodes outlined green, the
+// current one a solid gold box with bold text, upcoming ones grey. Opaque
+// card fills, so an edge routed behind a box never shows through it. The
+// IN-CHAT block is monochrome — no status language; the popup shows the
+// progression.
 const BOX: Record<PlanNodeStatus, string> = {
-	// 50%-opacity app background instead of true transparency: a routed
-	// edge passing behind the box composites UNDER the fill — dimmed to
-	// half, not shown straight through (owner, round 9).
-	visited: "fill-background/50 stroke-white",
-	current: "fill-background/50 stroke-white",
-	// The grayed-out not-yet-visited look stays as-is (owner).
+	visited: "fill-card stroke-[var(--lh-green)]",
+	current: "fill-[var(--lh-gold-tint)] stroke-[var(--lh-gold)]",
 	upcoming: "fill-card stroke-border",
 };
 const TEXT: Record<PlanNodeStatus, string> = {
-	visited: "fill-white text-xs",
-	current: "fill-white text-xs font-medium",
-	upcoming: "fill-muted-foreground/80 text-xs",
+	visited: "fill-foreground text-xs",
+	current: "fill-foreground text-xs font-bold",
+	upcoming: "fill-muted-foreground text-xs",
 };
-// The in-chat block speaks the dock language now (owner, plan-hug
-// round 2026-10-07): boxes in the lighter background variant like
-// the composer/dock shells — but the outlines STAY white (owner
-// follow-up: the gray fill is good, white box edges).
-const MONO_BOX = "fill-card stroke-white";
+const MONO_BOX = "fill-card stroke-[var(--lh-edge)]";
 const MONO_TEXT = "fill-foreground text-xs";
 
 /** The diagram itself: positioned nodes + bezier edges. Pure-ish render —
@@ -474,7 +459,6 @@ export function PlanDiagram({
 	nodes,
 	edges,
 	statusOf,
-	glowId,
 	markerId,
 	viewBoxOverride,
 	pad: padUnits,
@@ -486,7 +470,6 @@ export function PlanDiagram({
 	nodes: readonly LayoutNode[];
 	edges: ReadonlyArray<{ from: string; to: string }>;
 	statusOf: (id: string) => PlanNodeStatus;
-	glowId?: string | null;
 	markerId: string;
 	/** A windowed viewBox (the plan window) instead of the full extent. */
 	viewBoxOverride?: string;
@@ -555,7 +538,7 @@ export function PlanDiagram({
 				>
 					{/* The owner's arrowhead. The mouth (x 27.2) sits at refX so the
 					    line ends AT the notch — the tip beyond it is solid fill. */}
-					<path d={ARROW_HEAD} className="fill-white" />
+					<path d={ARROW_HEAD} className="fill-muted-foreground" />
 				</marker>
 				{/* Same head, grayed — arrows into not-yet-visited nodes are
 				    grayed out like the nodes themselves (owner, round 6). */}
@@ -571,12 +554,6 @@ export function PlanDiagram({
 				>
 					<path d={ARROW_HEAD} className="fill-border" />
 				</marker>
-				{/* The current node's highlight: a faint yellow fill BLURRED so it
-				    bleeds out over the node's edges (owner). Generous filter region
-				    so the blur never clips at its own bounds. */}
-				<filter id={`${markerId}-glow`} x="-60%" y="-60%" width="220%" height="220%">
-					<feGaussianBlur stdDeviation={GLOW_BLUR} />
-				</filter>
 			</defs>
 			{edges.map((e) => {
 				// Dagre's route for this edge: border-intersected waypoints —
@@ -604,7 +581,7 @@ export function PlanDiagram({
 					<path
 						key={`${e.from}->${e.to}`}
 						d={edgePathD(pts, target)}
-						className={dim ? "fill-none stroke-border" : "fill-none stroke-white"}
+						className={dim ? "fill-none stroke-border" : "fill-none stroke-muted-foreground"}
 						strokeWidth={STROKE_W}
 						markerEnd={`url(#${markerId}${dim ? "-dim" : ""})`}
 					/>
@@ -612,7 +589,6 @@ export function PlanDiagram({
 			})}
 			{nodes.map((n) => {
 				const status = statusOf(n.id);
-				const glow = n.id === glowId && !monochrome;
 				const lines = wrapTitle(n.title);
 				// The box hugs its wrapped content; text centers in it —
 				// horizontally too now (text-first sizing round, 2026-10-07).
@@ -626,28 +602,13 @@ export function PlanDiagram({
 						data-testid={`plan-node-${n.id}`}
 						data-status={status}
 					>
-						{/* Rectangular — no corner rounding (owner). */}
 						<rect
 							width={w}
 							height={h}
+							rx={8}
 							className={monochrome ? MONO_BOX : BOX[status]}
 							strokeWidth={STROKE_W}
 						/>
-						{glow && (
-							// The current node's highlight: faint yellow, blurred so it
-							// bleeds over the edges — static, no pulse (owner, round 6).
-							// Paints ABOVE the box fill (owner, round 10): the round-9
-							// background fill no longer dims the glow inside the box,
-							// while edges behind the box still dim under that fill.
-							<rect
-								x={-GLOW_MARGIN}
-								y={-GLOW_MARGIN}
-								width={w + 2 * GLOW_MARGIN}
-								height={h + 2 * GLOW_MARGIN}
-								className="fill-yellow-400/25"
-								filter={`url(#${markerId}-glow)`}
-							/>
-						)}
 						{lines.map((line, i) => (
 							<text
 								key={i}
@@ -727,9 +688,8 @@ export function latestTree(messages: readonly PopupMessage[]): PlanTree | null {
 	return null;
 }
 
-/** The popup shows the glow, so its frame pads by the glow's reach —
- *  the in-chat block (monochrome, no glow) stays tight at GRAPH_PAD. */
-const POPUP_PAD = GLOW_REACH;
+/** The popup's frame gets breathing room; the in-chat block stays tight at GRAPH_PAD. */
+const POPUP_PAD = 3 * GRAPH_PAD;
 
 // The pan/zoom math now lives in components/pan-zoom.ts (shared with the
 // mermaid focus overlay since the session-overlay wave, 2026-09-19) — same
@@ -940,7 +900,6 @@ export function PlanPopup({ messages, onClose }: { messages: readonly PopupMessa
 								nodes={tree.nodes}
 								edges={tree.edges}
 								statusOf={statusOf}
-								glowId={statuses?.current ?? null}
 								markerId={markerId}
 								pad={POPUP_PAD}
 								naturalSize

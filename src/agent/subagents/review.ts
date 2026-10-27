@@ -5,7 +5,7 @@ import { Type, type Static } from "typebox";
 import { nanoid } from "nanoid";
 import { PATHS, type ModelRole } from "../../../config.ts";
 import type { GraphChain, GraphNode } from "../../core/contracts/graph.ts";
-import { quizFormatSchema, quizInputProblems } from "../../core/question-core.ts";
+import { guessableChoiceProblems, quizFormatSchema, quizInputProblems } from "../../core/question-core.ts";
 import { REVIEW_SET_SIZE, dueCards, formatsForStep, interleave, syncCards, type ReviewCard, type ReviewQuestion, type ReviewSet } from "../../core/review.ts";
 import type { ReviewStore } from "../../core/ports.ts";
 import type { PiEngine } from "../models.ts";
@@ -50,7 +50,7 @@ export function reviewQuestionProblem(q: Written, card: ReviewCard | undefined):
 	if (!card) return `nodeId "${q.nodeId}" is not one of the due nodes`;
 	const allowed = formatsForStep(card.step);
 	if (!allowed.includes(q.format)) return `node ${q.nodeId} is on step ${card.step}: use format ${allowed.join(" or ")}, not ${q.format}`;
-	const problems = quizInputProblems(q);
+	const problems = [...quizInputProblems(q), ...guessableChoiceProblems(q, "")];
 	return problems.length ? `node ${q.nodeId}: ${problems.join(" ")}` : null;
 }
 
