@@ -30,7 +30,7 @@ import {
 import { runPiTurn } from "./pi/ui-stream.ts";
 import { collectToolCallIds } from "./pi/call-ids.ts";
 import { providerEventNote } from "../agent/provider-events.ts";
-import { effectiveSettings, stores } from "./stores.ts";
+import { effectiveSettings, settingsRecord, stores } from "./stores.ts";
 import { searchAvailable, searchProvider } from "./search.ts";
 import { providerKeyPresent } from "./keys.ts";
 import {
@@ -140,8 +140,8 @@ setTurnRunner(async (chatId, input) => {
  *  flows through to the per-need refusal gates (runner/extraction), read
  *  FRESH so a settings PUT between dispatch and spawn lands. */
 function resolveEngine(role: ModelRole): PiEngine | undefined {
-	const spec = resolveRoleSpec(role, stores.settingsStore.readSettings());
-	return spec ? piEngineForSpec(spec) : undefined;
+	const spec = resolveRoleSpec(role, settingsRecord());
+	return spec ? piEngineForSpec(spec, true, undefined, { role }) : undefined;
 }
 
 setJobRespawn((jobId) => void jobRunner.runJob(jobId));
@@ -240,13 +240,14 @@ export async function handleChatInput(
 		noDispatch: (kind) => requestCycle?.noDispatch(kind),
 	};
 	let conversationEngine: PiEngine;
-	try { conversationEngine = piEngineForSpec(conversation, () => callPurpose.background, lifecycle); }
+	const conversationRole = record.kind === "practice" ? "practice" : hasProbeDone(record.messages) ? "teacher" : "prober";
+	try { conversationEngine = piEngineForSpec(conversation, () => callPurpose.background, lifecycle, { role: conversationRole, chatId }); }
 	catch { return Response.json({ error: conversation.provider === "chatgpt" ? chatGPTStreamError("model catalog") : isSubscriptionProvider(conversation.provider) ? nativeSubscriptionError(conversation.provider, "model catalog") : "The selected model is unavailable." }, { status: 503 }); }
 	const modelIdForCompaction = `${conversationEngine.model.provider}:${conversationEngine.model.id}`;
 	await ensureCompacted(
 		{
 			chatStore: stores.chatStore,
-			engine: piEngineForSpec(conversation, true),
+			engine: piEngineForSpec(conversation, true, undefined, { role: "compaction", chatId }),
 			canStart: () => connectionBackgroundAllowed(conversation.provider),
 			modelId: modelIdForCompaction,
 			kind: record.kind === "practice" ? "practice" : hasProbeDone(record.messages) ? "teach" : "probe",
@@ -598,7 +599,7 @@ export async function handleChatInput(
 						const spec = resolveConversationSpec(stores.chatStore.getChat(chatId)?.settings, fresh.models.strong);
 						if (!spec || !connectionBackgroundAllowed(spec.provider)) return null;
 						let kickEngine: PiEngine;
-						try { kickEngine = piEngineForSpec(spec, true); } catch { return null; }
+						try { kickEngine = piEngineForSpec(spec, true, undefined, { role: "compaction", chatId }); } catch { return null; }
 						const kickModelId = `${kickEngine.model.provider}:${kickEngine.model.id}`;
 						const freshRecord = stores.chatStore.getChat(chatId);
 						if (!freshRecord) return null;

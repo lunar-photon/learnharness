@@ -1,0 +1,6 @@
+{
+	"context": { "fileName": ["AGENTS.md"] },
+	"mcpServers": {
+		"learnharness": { "command": "node", "args": ["scripts/lh-mcp.mjs"], "timeout": 120000 }
+	}
+}

@@ -1,0 +1,5 @@
+# LearnHarness as the model of a Codex session (docs/agent-driver-plan.md).
+[mcp_servers.learnharness]
+command = "node"
+args = ["scripts/lh-mcp.mjs"]
+tool_timeout_sec = 120

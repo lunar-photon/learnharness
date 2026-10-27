@@ -45,3 +45,6 @@ export * from "./observability.ts";
 export * from "./model-catalog.ts";
 export { subscriptionControlsResponse, subscriptionBrowserResponse } from "./web-subscription-http.ts";
 export { sessionCost } from "./pricing.ts";
+// The external-agent driver (docs/agent-driver-plan.md): the queue the
+// terminal agent pulls model requests from and answers.
+export { driverNext, driverRefetch, driverRespond, driverStatus, type DriverReply } from "../agent/external-engine.ts";

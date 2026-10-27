@@ -16,6 +16,8 @@
 		"dev": "next dev",
 		"build": "next build",
 		"start": "next start",
+		"agent": "node scripts/lh-mcp.mjs launch",
+		"agent:setup": "node scripts/lh-mcp.mjs setup",
 		"test": "NODE_ENV=test tsx --test tests/*.test.ts tests/*.test.tsx",
 		"lint": "eslint .",
 		"typecheck": "tsc --noEmit",

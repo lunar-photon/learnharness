@@ -1,0 +1,5 @@
+{
+	"mcpServers": {
+		"learnharness": { "command": "node", "args": ["scripts/lh-mcp.mjs"] }
+	}
+}
