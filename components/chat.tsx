@@ -79,6 +79,7 @@ import { ReadingThinkingField } from "@/components/reading-thinking";
 import { currentUserThinkingOpen, setAllUserThinkingOpen } from "@/components/thinking-block";
 import { slotsConfigured, type ModelsSettings } from "@/src/core";
 import { useSettingsSaved } from "@/components/settings-signal";
+import { ExplanationFeedback } from "@/components/explanation-feedback";
 
 /** One width for everything: transcript, cards, and the bottom blob share this column. */
 /**
@@ -122,6 +123,8 @@ export const ChatActionsContext = createContext<{
 	syncFromServer: () => Promise<void>;
 	/** Send a user message into the session (demo error-fix loop, W6). */
 	sendText: (text: string) => void;
+	/** Whether sendText would go through now (no turn, pending question, active problem or compaction). */
+	canSendText: boolean;
 	/** Opens the model setup dialog (BYOK, 2026-09-22): refused job cards
 	 *  deep-link into the same SetupDialog the send interception uses. */
 	openSetup: () => void;
@@ -1179,6 +1182,7 @@ export function Chat({
 				sendText: (t: string) => {
 					void send({ type: "text", text: t });
 				},
+				canSendText: !busy && !pending && !activeProblem && !compacting,
 				openSetup: () => setSetupOpen(true),
 			}}
 		>
@@ -1478,6 +1482,10 @@ export function Chat({
 														return (
 															<div key={part.id || pi} id={anchor} data-source-message-id={sourceId ?? undefined} className="lh-source-passage">
 																<MessageResponse>{part.text}</MessageResponse>
+																{/* One verdict per teacher message, in the teach phase, once it has finished streaming. */}
+																{anchor && sourceId && phases[mi] === "teach" && !(status === "streaming" && mi === messages.length - 1) ? (
+																	<ExplanationFeedback messageId={sourceId} />
+																) : null}
 															</div>
 														);
 													}

@@ -121,6 +121,9 @@ export interface AgentBuildOptions {
 	 *  fresh per turn, honoring enabled overrides (switch on + file
 	 *  exists); absent → the cached pure-source composition. */
 	promptSwitches?: Record<string, boolean>;
+	/** The learner profile summary (core/learner.ts profileSummary) —
+	 *  appended to the system prompt; empty or absent → nothing added. */
+	learnerProfile?: string;
 	/** Native conversation identity: the existing persisted chat id, reused
 	 * across reconstructed prober, teacher, and practice Agents.
 	 * Debug: when set AND LH_PROVIDER_EVENTS=1, raw provider stream events
@@ -174,6 +177,13 @@ function makeQuestionStopper(kind: AgentKind) {
 	};
 }
 
+/** The learner model as a trailing prompt section (docs/agent-driver-plan.md §5). */
+export function learnerProfileSection(kind: AgentKind, profile?: string): string {
+	if (!profile?.trim()) return "";
+	const replan = kind === "teacher" ? " When it contradicts the current plan, revise the plan with `plan_init`." : "";
+	return `\n\n---\n\n# The learner profile\n\nWhat has been learned so far about how this learner understands, each entry dated and drawn from their own answers, thinking and feedback. Build on it: start from what they hold, use the notation they read fluently, follow their framing preferences, and aim checks at their misconceptions. Treat it as evidence, not as a verdict on them; their answers in this session override it.${replan}\n\n${profile.trim()}`;
+}
+
 function baseAgentOptions(kind: AgentKind, opts: AgentBuildOptions, tools: AgentTool<any, any>[]) {
 	// Practice never reaches the role fallback (the handler ALWAYS injects
 	// the session's conversation engine — practice rides the same
@@ -181,9 +191,9 @@ function baseAgentOptions(kind: AgentKind, opts: AgentBuildOptions, tools: Agent
 	// ("practice" is not a ModelRole) honest about that.
 	const engine = opts.engine ?? piEngineFor(kind as "prober" | "teacher");
 	const stopper = makeQuestionStopper(kind);
-	const systemPrompt = opts.promptSwitches
+	const systemPrompt = (opts.promptSwitches
 		? composeInstructions(kind, opts.promptSwitches)
-		: composedInstructions[kind]!;
+		: composedInstructions[kind]!) + learnerProfileSection(kind, opts.learnerProfile);
 	// Debug recorder (owner, 2026-10-04): raw provider events when
 	// LH_PROVIDER_EVENTS=1 and the caller handed a chatId; undefined is
 	// the normal no-observer path (tests, env-off).

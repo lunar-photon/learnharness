@@ -9,6 +9,7 @@
  * adapters may import core; core NEVER imports an adapter.
  */
 
+import type { ExplanationFeedback, LearnerEntry } from "./contracts/learner.ts";
 import type { LhMessage } from "./native-messages.ts";
 import type {
 	ChatRecord,
@@ -222,3 +223,26 @@ export interface AuthStore {
 	deleteAuthVar(name: string): void;
 }
 
+
+/** The learner profile store (contracts/learner.ts) — one writer: the
+ *  learner pipeline, plus the feedback route for verdicts. Append-only
+ *  JSONL; the cursor records what the pipeline has already read. */
+export interface LearnerPipelineState {
+	/** chatId → number of record messages already modelled. */
+	chats: Record<string, number>;
+	/** Explanation pairs already reviewed (core/learner.ts pairKey). */
+	pairs: string[];
+}
+
+export interface LearnerStore {
+	readEntries(): LearnerEntry[];
+	appendEntries(entries: readonly LearnerEntry[]): void;
+	readFeedback(): ExplanationFeedback[];
+	appendFeedback(feedback: ExplanationFeedback): void;
+	readState(): LearnerPipelineState;
+	writeState(state: LearnerPipelineState): void;
+	/** Save a learner-sourced example (examples/NN-slug.md); returns its id. */
+	writeExample(slug: string, markdown: string): string;
+	/** Directory of learner-sourced examples (the example tool's second source). */
+	examplesDir(): string;
+}

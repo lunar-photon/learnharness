@@ -226,6 +226,9 @@ export const ROLE_SLOT: Readonly<Record<ModelRole, ModelSlotName>> = {
 	auditor: "cheap",
 	visualMaker: "vision",
 	pdfReader: "vision",
+	learnerModeler: "cheap",
+	// Style extraction is judgment-heavy and rare: the strong tier.
+	explanationReviewer: "strong",
 };
 
 /** General settings — app-level behavior. Version DISPLAY and plans login

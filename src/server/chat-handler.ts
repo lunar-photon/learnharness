@@ -11,8 +11,10 @@ import { connectionBackgroundAllowed, connectionScopeCurrent, isSubscriptionProv
 import { nativeSubscriptionError } from "../agent/subscription-stream.ts";
 import { chatGPTStreamError } from "../agent/chatgpt-stream.ts";
 import { SubscriptionRequestCycle, type SubscriptionDispatchLifecycle } from "../agent/subscription-request-cycle.ts";
-import { reconstructRequestCause } from "../core/native-messages.ts";
+import { reconstructRequestCause, type LhMessage } from "../core/native-messages.ts";
 import { createJobRunner } from "../agent/subagents/runner.ts";
+import { createLearnerPipeline } from "../agent/subagents/learner.ts";
+import { pendingFeedbackNote, profileSummary } from "../core/learner.ts";
 import { createExtractionPipeline } from "../agent/subagents/extraction.ts";
 import type { ModelRole } from "../../config.ts";
 import {
@@ -105,6 +107,35 @@ const jobRunner = createJobRunner({
 	// same signal so keyless servers never see the research tool at all.
 	searchProvider,
 });
+/** The learner pipeline (docs/agent-driver-plan.md §5): the learner-modeler
+ *  and explanation-reviewer roles, run after each turn. Skips quietly when
+ *  the role has no usable engine (unset slot, missing key, background use off). */
+export const learner = createLearnerPipeline({
+	...stores,
+	engineFor: (role) => {
+		const engine = resolveEngine(role);
+		return engine && providerKeyPresent(engine.model.provider) && connectionBackgroundAllowed(engine.model.provider) ? engine : undefined;
+	},
+});
+
+/** The profile plus this chat's unanswered "didn't land" verdicts, for the prompt. */
+function learnerContext(chatId: string, messages: readonly LhMessage[]): string {
+	const teacherTimes = messages.filter((m) => (m as { role?: string }).role === "assistant").map((m) => (m as { timestamp?: number }).timestamp ?? 0);
+	const excerptOf = (messageId: string) => {
+		const m = messages.find((x) => (x as { id?: string }).id === messageId) as { content?: unknown } | undefined;
+		const text = Array.isArray(m?.content) ? m.content.filter((c: { type?: string }) => c.type === "text").map((c: { text: string }) => c.text).join(" ") : "";
+		return text.replace(/\s+/g, " ").slice(0, 120);
+	};
+	const pending = pendingFeedbackNote(stores.learnerStore.readFeedback(), chatId, Math.max(0, ...teacherTimes), excerptOf);
+	return [profileSummary(stores.learnerStore.readEntries()), pending].filter(Boolean).join("\n\n");
+}
+
+/** Fire-and-forget, like extraction; scripted test chats are fixtures. */
+export function triggerLearnerUpdate(chatId: string): void {
+	if (process.env.NODE_ENV === "test") return;
+	void learner.runLearnerUpdate(chatId).catch((err) => console.error(`[chat ${chatId}] learner update failed:`, err));
+}
+
 /** The app's ONE extraction pipeline instance — both front doors share it:
  *  quiz-triggered session runs (turn-service) and notes imports
  *  (/api/graph/import) hit the same single-flight registry. */
@@ -404,6 +435,7 @@ export async function handleChatInput(
 		// point as the tool delta — the agent layer composes the system
 		// prompt fresh per turn, swapping in any enabled override segments.
 		promptSwitches: effective.agent.prompts,
+		learnerProfile: learnerContext(chatId, merged),
 	};
 	// PRACTICE BRANCH (owner design, 2026-10-04): a kind:"practice"
 	// session builds the practitioner from turn 1 — no prober→teacher
@@ -558,6 +590,7 @@ export async function handleChatInput(
 					// against it and the pipeline's batches share it.
 					triggerExtraction(stores, extraction, chatId, effective.graph.extractionChunkTokens);
 				}
+				if (!requestCycle || requestCycle.dispatched) triggerLearnerUpdate(chatId);
 				// PARKED DISMISSAL (owner, 2026-10-04): a dismissal that arrived
 				// mid-turn was parked by the dismiss route (202); now that
 				// persistTurn has landed the turn's messages, apply it against

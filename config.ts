@@ -26,6 +26,9 @@ export const PATHS = {
 	/** Chat sessions (AI SDK UIMessage transcripts, one JSON file per chat). */
 	chats: path.join(DATA_ROOT, "chats"),
 	graph: path.join(DATA_ROOT, "graph"),
+	/** The learner profile (contracts/learner.ts): profile.jsonl,
+	 * feedback.jsonl, the pipeline cursor, and learner-sourced examples/. */
+	learner: path.join(DATA_ROOT, "learner"),
 	/** Debug artifacts (env-gated): data/debug/provider-events/<chatId>.jsonl
 	 * raw provider stream recordings (src/agent/provider-events.ts). */
 	debug: path.join(DATA_ROOT, "debug"),
@@ -52,7 +55,9 @@ export type ModelRole =
 	| "visualMaker"
 	| "pdfReader"
 	| "extractor"
-	| "auditor";
+	| "auditor"
+	| "learnerModeler"
+	| "explanationReviewer";
 
 /**
  * The LIVE graph store (src/store/graph.ts) — owned by the app's extraction

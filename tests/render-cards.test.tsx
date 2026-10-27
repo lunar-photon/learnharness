@@ -118,7 +118,7 @@ describe("DispatchCard — the BYOK refusal tone (owner, 2026-09-22)", () => {
 	const inJobs = (jobs: JobRecord[]) => (
 		<JobsContext.Provider value={jobs}>
 			<ChatActionsContext.Provider
-				value={{ chatId: "c1", syncFromServer: async () => {}, sendText: () => {}, openSetup: () => {} }}
+				value={{ chatId: "c1", syncFromServer: async () => {}, sendText: () => {}, canSendText: true, openSetup: () => {} }}
 			>
 				<DispatchCard toolCallId="t1" kind="research" />
 			</ChatActionsContext.Provider>
@@ -798,5 +798,20 @@ describe("question context renders as markdown everywhere (owner, 2026-10-12)", 
 		assert.match(html, /Very/, "the card renders");
 		assert.equal((html.match(/class="katex"/g) ?? []).length, 0, "no context slot appears from nothing");
 		assert.ok(!html.includes("lh-prose block text-xs"), "no description slot without an ask input");
+	});
+});
+
+describe("explanation feedback control", () => {
+	it("asks whether the explanation landed, inside a chat session only", async () => {
+		const { ExplanationFeedback } = await import("../components/explanation-feedback.tsx");
+		const html = renderToStaticMarkup(
+			<ChatActionsContext.Provider value={{ chatId: "c1", syncFromServer: async () => {}, sendText: () => {}, canSendText: true, openSetup: () => {} }}>
+				<ExplanationFeedback messageId="m1" />
+			</ChatActionsContext.Provider>,
+		);
+		assert.match(html, /Did this land\?/);
+		assert.match(html, />Landed</);
+		assert.match(html, /aria-expanded="false"[^>]*>Didn(&#x27;|')t land</);
+		assert.equal(renderToStaticMarkup(<ExplanationFeedback messageId="m1" />), "", "no session context, no control");
 	});
 });
