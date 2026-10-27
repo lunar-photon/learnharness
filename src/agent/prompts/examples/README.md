@@ -7,3 +7,5 @@ not templates to reproduce.
 
 File shape: `# Title`, a one-line `Lesson:`, then `## Generic answer` (optional), `## Preferred construction`,
 `## Teaching lesson`, and `## Accuracy constraint` (optional).
+
+Figures an example refers to live in `figures/`, named after the example (`05-…png`); the example's text describes the figure, since the `example` tool returns text only.
