@@ -66,13 +66,15 @@ export interface DriverRequest {
 	requestId: string;
 	role: string;
 	chatId?: string;
-	/** null = unchanged since previousId (same thread). */
+	/** null = unchanged since promptFrom (same role). */
 	systemPrompt: string | null;
 	tools: { name: string; description: string; parameters: unknown }[] | null;
 	/** Messages after the `prior` ones already sent in previousId. */
 	messages: DriverMessage[];
 	prior: number;
 	previousId?: string;
+	/** The request that last carried this role's prompt and tools. */
+	promptFrom?: string;
 }
 
 export interface DriverReply {
@@ -93,19 +95,24 @@ interface Parked {
 	settle: (outcome: { reply: DriverReply } | { error: string; aborted?: boolean }) => void;
 }
 
-interface ThreadState { lastId: string; sent: number; promptHash: string; toolsHash: string }
+interface ThreadState { lastId: string; sent: number }
+/** What each role's agent already holds: prompts and tools repeat across threads (every PYQ chunk is its own thread). */
+interface RoleState { lastId: string; promptHash: string; toolsHash: string }
 
 interface DriverState {
 	parked: Map<string, Parked>;
 	waiters: Set<() => void>;
 	threads: Map<string, ThreadState>;
+	roles: Map<string, RoleState>;
 	lastSeen: number;
 	activePolls: number;
 }
 
 function state(): DriverState {
 	const g = globalThis as typeof globalThis & { __lhDriver?: DriverState };
-	return (g.__lhDriver ??= { parked: new Map(), waiters: new Set(), threads: new Map(), lastSeen: 0, activePolls: 0 });
+	const s = (g.__lhDriver ??= { parked: new Map(), waiters: new Set(), threads: new Map(), roles: new Map(), lastSeen: 0, activePolls: 0 });
+	s.roles ??= new Map(); // a state object from before roles existed (dev hot reload)
+	return s;
 }
 
 const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex").slice(0, 16);
@@ -240,25 +247,32 @@ function deliver(p: Parked, full: boolean): DriverRequest {
 	const promptHash = hash(p.systemPrompt);
 	const toolsHash = hash(p.tools);
 	const prev = full ? undefined : s.threads.get(p.thread);
+	const role = full ? undefined : s.roles.get(p.label.role);
 	// A thread only grows within a run; anything shorter is a rebuilt
 	// (compacted) history and goes out whole.
 	const prior = prev && prev.sent <= p.messages.length ? prev.sent : 0;
-	s.threads.set(p.thread, { lastId: p.id, sent: p.messages.length, promptHash, toolsHash });
+	// Both or neither: promptFrom must name one request that carried both.
+	const same = role?.promptHash === promptHash && role.toolsHash === toolsHash;
+	s.threads.set(p.thread, { lastId: p.id, sent: p.messages.length });
+	s.roles.set(p.label.role, { lastId: same ? role!.lastId : p.id, promptHash, toolsHash });
 	return {
 		requestId: p.id,
 		role: p.label.role,
 		...(p.label.chatId ? { chatId: p.label.chatId } : {}),
-		systemPrompt: prior && prev?.promptHash === promptHash ? null : p.systemPrompt,
-		tools: prior && prev?.toolsHash === toolsHash ? null : p.tools,
+		systemPrompt: same ? null : p.systemPrompt,
+		tools: same ? null : p.tools,
 		messages: p.messages.slice(prior),
 		prior,
 		...(prior ? { previousId: prev!.lastId } : {}),
+		...(same ? { promptFrom: role!.lastId } : {}),
 	};
 }
 
 /** Long-poll: the oldest unclaimed request (claiming it), or null on timeout. */
 export async function driverNext(timeoutMs: number, signal?: AbortSignal): Promise<DriverRequest | null> {
 	const s = state();
+	// A silent spell means the agent restarted: what it held is gone, so the next requests go out whole.
+	if (s.activePolls === 0 && Date.now() - s.lastSeen > ACTIVE_MS) { s.threads.clear(); s.roles.clear(); }
 	s.lastSeen = Date.now();
 	s.activePolls++;
 	try {

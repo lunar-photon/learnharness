@@ -63,6 +63,7 @@ describe("external engine", () => {
 		assert.equal(r2.prior, 1);
 		assert.equal(r2.previousId, r1.requestId);
 		assert.equal(r2.systemPrompt, null, "unchanged prompt is not resent");
+		assert.equal(r2.promptFrom, r1.requestId);
 		assert.equal(r2.tools, null, "unchanged tools are not resent");
 		assert.deepEqual(r2.messages.map((m) => m.role), ["assistant", "toolResult"]);
 
@@ -72,6 +73,23 @@ describe("external engine", () => {
 		assert.equal(full.messages.length, 3);
 		driverRespond({ requestId: r2.requestId, text: "B is right." });
 		assert.equal((await s2.result()).stopReason, "stop");
+	});
+
+	it("elides a role's unchanged prompt and tools across threads", async () => {
+		const ctx = (text: string) => normalizeContext({ systemPrompt: "Extract PYQs.", tools: [tool], messages: [user(text)] });
+		const s1 = externalStream({ role: "pyqExtractor" })(model, ctx("pages 1-3"));
+		const r1 = (await driverNext(1000))!;
+		driverRespond({ requestId: r1.requestId, text: "ok" });
+		await s1.result();
+		const s2 = externalStream({ role: "pyqExtractor" })(model, ctx("pages 4-6"));
+		const r2 = (await driverNext(1000))!;
+		assert.equal(r1.systemPrompt, "Extract PYQs.");
+		assert.equal(r2.prior, 0, "a new chunk is a new thread: its messages go out whole");
+		assert.equal(r2.systemPrompt, null);
+		assert.equal(r2.tools, null);
+		assert.equal(r2.promptFrom, r1.requestId);
+		driverRespond({ requestId: r2.requestId, text: "ok" });
+		await s2.result();
 	});
 
 	it("an abort settles the stream and frees the request", async () => {

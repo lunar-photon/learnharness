@@ -108,8 +108,8 @@ async function launch({ open = true } = {}) {
 
 function formatRequest(req) {
 	const head = [`Request ${req.requestId} · role: ${req.role}${req.chatId ? ` · chat: ${req.chatId}` : ""}`];
-	head.push(req.systemPrompt == null ? `System prompt: unchanged since ${req.previousId}.` : `System prompt:\n${req.systemPrompt}`);
-	head.push(req.tools == null ? `Tools: unchanged since ${req.previousId}.` : `Tools:\n${JSON.stringify(req.tools)}`);
+	head.push(req.systemPrompt == null ? `System prompt: unchanged since ${req.promptFrom} (same role).` : `System prompt:\n${req.systemPrompt}`);
+	head.push(req.tools == null ? `Tools: unchanged since ${req.promptFrom} (same role).` : `Tools:\n${JSON.stringify(req.tools)}`);
 	head.push(`Messages${req.prior ? ` (after the ${req.prior} already sent in ${req.previousId})` : ""}:\n${JSON.stringify(req.messages, null, 1)}`);
 	head.push(`Answer with lh_respond { requestId: "${req.requestId}", text?, toolCalls? }.`);
 	return head.join("\n\n");
