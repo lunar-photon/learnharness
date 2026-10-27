@@ -23,6 +23,8 @@ const BASE = `http://127.0.0.1:${PORT}`;
 // Long waits keep agents polling: each empty reply is a turn an agent may end on. 5 min sits under
 // the tool timeouts this repo configures (6 min); LH_POLL_MS shortens it for a client that cuts calls sooner.
 const POLL_MS = Number(process.env.LH_POLL_MS) || 300_000;
+const SLICE_MS = 15_000;
+const CLOSED = "LearnHarness is not running (the learner closed it). Call lh_launch when they want to continue.";
 /** The desktop app's userData (Electron's per-platform default for "LearnHarness"); LH_DESKTOP_DIR overrides it. */
 const DESKTOP_DIR = process.env.LH_DESKTOP_DIR || (process.platform === "darwin"
 	? join(homedir(), "Library", "Application Support", "LearnHarness")
@@ -112,10 +114,6 @@ async function api(path, init = {}, t) {
 	return { status: res.status, body: body ? JSON.parse(body) : null };
 }
 
-async function running() {
-	return reachable(await target());
-}
-
 function openBrowser(url) {
 	const cmd = process.platform === "darwin" ? "open" : process.platform === "win32" ? "cmd" : "xdg-open";
 	const args = process.platform === "win32" ? ["/c", "start", "", url] : [url];
@@ -191,12 +189,30 @@ async function call(name, args = {}) {
 			return JSON.stringify({ app: t.desktop ? "desktop" : "web", url: `${t.base}/`, ...(await api("/api/driver/status", {}, t)).body });
 		}
 		case "lh_next": {
-			if (!(await running())) return `LearnHarness is not running. Call lh_launch.`;
-			const q = args.requestId ? `requestId=${encodeURIComponent(args.requestId)}&full=${args.full ? 1 : 0}` : `timeoutMs=${POLL_MS}`;
-			const { status, body } = await api(`/api/driver/next?${q}`, { signal: AbortSignal.timeout(POLL_MS + 10_000) });
-			if (status === 204) return "No pending request yet: the learner is reading or answering, and the session is still live. Call lh_next again now and keep looping; stop only when the user tells you to.";
-			if (status !== 200) throw new Error(body?.error ?? `HTTP ${status}`);
-			return formatRequest(body);
+			const t = await target();
+			if (!(await reachable(t))) return CLOSED;
+			if (args.requestId) {
+				const { status, body } = await api(`/api/driver/next?requestId=${encodeURIComponent(args.requestId)}&full=${args.full ? 1 : 0}`, {}, t);
+				if (status !== 200) throw new Error(body?.error ?? `HTTP ${status}`);
+				return formatRequest(body);
+			}
+			// Wait in short slices, re-checking between them that the app we poll is still the open one:
+			// closing the desktop app (or opening it while we poll the web app) must end the wait at once,
+			// or the agent sits in this call and can't act on "launch it again".
+			const deadline = Date.now() + POLL_MS;
+			while (Date.now() < deadline) {
+				let res;
+				try {
+					res = await api(`/api/driver/next?timeoutMs=${Math.min(SLICE_MS, deadline - Date.now())}`, { signal: AbortSignal.timeout(SLICE_MS + 10_000) }, t);
+				} catch {
+					return CLOSED;
+				}
+				if (res.status === 200) return formatRequest(res.body);
+				if (res.status !== 204) throw new Error(res.body?.error ?? `HTTP ${res.status}`);
+				const now = await target();
+				if (now.base !== t.base) return `LearnHarness moved to the ${now.desktop ? "desktop app" : "web app"} (${now.base}/). Call lh_next again.`;
+			}
+			return "No pending request yet: the learner is reading or answering, and the session is still live. Call lh_next again now and keep looping; stop only when the user tells you to.";
 		}
 		case "lh_respond": {
 			const { status, body } = await api("/api/driver/respond", { method: "POST", body: JSON.stringify(args) });
