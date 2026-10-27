@@ -45,6 +45,11 @@ describe("lh-mcp stdio server", () => {
 			const status = await request("tools/call", { name: "lh_status", arguments: {} });
 			assert.match(status.result.content[0].text, /not running/);
 
+			for (const [name, heading] of [["explanation_reviewer", "# The explanation reviewer"], ["verifier", "# The verifier"]]) {
+				const role = await request("tools/call", { name: "lh_role", arguments: { name } });
+				assert.ok(role.result.content[0].text.startsWith(heading), `lh_role serves ${name}`);
+			}
+
 			const missing = await request("nope");
 			assert.equal(missing.error.code, -32601);
 		} finally {
