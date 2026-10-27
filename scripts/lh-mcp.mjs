@@ -20,7 +20,9 @@ import { fileURLToPath } from "node:url";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PORT = Number(process.env.LH_PORT || 3517);
 const BASE = `http://127.0.0.1:${PORT}`;
-const POLL_MS = 45_000; // under every client's default tool timeout
+// Long waits keep agents polling: each empty reply is a turn an agent may end on. 5 min sits under
+// the tool timeouts this repo configures (6 min); LH_POLL_MS shortens it for a client that cuts calls sooner.
+const POLL_MS = Number(process.env.LH_POLL_MS) || 300_000;
 /** The desktop app's userData (Electron's per-platform default for "LearnHarness"); LH_DESKTOP_DIR overrides it. */
 const DESKTOP_DIR = process.env.LH_DESKTOP_DIR || (process.platform === "darwin"
 	? join(homedir(), "Library", "Application Support", "LearnHarness")
@@ -46,7 +48,7 @@ const TOOLS = [
 	},
 	{
 		name: "lh_next",
-		description: "Wait (≤45 s) for the next model request from LearnHarness. Returns the request or 'No pending request' — then call again. With requestId (+ full: true) re-fetches one request in full.",
+		description: "Wait (up to 5 min) for the next model request from LearnHarness. Returns the request or 'No pending request' — then call again at once; the learner is still working. With requestId (+ full: true) re-fetches one request in full.",
 		inputSchema: { type: "object", properties: { requestId: { type: "string" }, full: { type: "boolean" } } },
 	},
 	{
@@ -192,7 +194,7 @@ async function call(name, args = {}) {
 			if (!(await running())) return `LearnHarness is not running. Call lh_launch.`;
 			const q = args.requestId ? `requestId=${encodeURIComponent(args.requestId)}&full=${args.full ? 1 : 0}` : `timeoutMs=${POLL_MS}`;
 			const { status, body } = await api(`/api/driver/next?${q}`, { signal: AbortSignal.timeout(POLL_MS + 10_000) });
-			if (status === 204) return "No pending request (the learner is reading or answering). Call lh_next again now.";
+			if (status === 204) return "No pending request yet: the learner is reading or answering, and the session is still live. Call lh_next again now and keep looping; stop only when the user tells you to.";
 			if (status !== 200) throw new Error(body?.error ?? `HTTP ${status}`);
 			return formatRequest(body);
 		}
@@ -245,7 +247,7 @@ function setup() {
 	agy.on("exit", (code) => {
 		if (code !== 0) return;
 		console.log("Registered learnharness with Antigravity (agy).");
-		// lh_next fires every ~45 s: without an allow-rule agy prompts on every
+		// lh_next fires every few minutes: without an allow-rule agy prompts on every
 		// call (and headless mode auto-denies). Only this server is allowed.
 		const file = join(homedir(), ".gemini", "antigravity-cli", "settings.json");
 		try {

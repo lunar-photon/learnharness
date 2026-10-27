@@ -54,7 +54,7 @@ Hand-rolled JSON-RPC over stdio (initialize, tools/list, tools/call, ping) — n
 Tools:
 - `lh_launch` — starts the app if not running (`next dev`/`next start` in the repo), waits for health, opens the
   browser, returns the URL.
-- `lh_next` — long-polls `/api/driver/next` for ≤45 s, then returns "nothing yet, call again" (sidesteps every
+- `lh_next` — long-polls `/api/driver/next` for up to 5 min (`LH_POLL_MS`), then returns "nothing yet, call again" (sidesteps every
   client's tool timeout).
 - `lh_respond` — posts the reply.
 - `lh_role(name)` — returns a role's instructions (for agent-side roles, §3).

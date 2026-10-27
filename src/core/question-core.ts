@@ -113,8 +113,24 @@ export function quizInputProblems(input: {
 	options: Array<{ label: string; value?: string }>;
 	correctAnswer: string | string[];
 	multiSelect?: boolean;
+	format?: unknown;
+	lines?: unknown;
 }): string[] {
 	const { problems, keys } = optionProblems(input.options);
+	const format = normalizeQuizFormat(input.format);
+	const lines = Array.isArray(input.lines) ? input.lines.filter((l): l is string => typeof l === "string") : [];
+	if ((format === "next_step" || format === "fill_blank") && lines.length === 0)
+		problems.push(`format "${format}" needs \`lines\`: the derivation or code the learner works from.`);
+	if (format === "fill_blank" && lines.join("\n").split(BLANK).length !== 2)
+		problems.push(`format "fill_blank" needs exactly one ${BLANK} in \`lines\` — the slot the chosen option fills.`);
+	if (format === "order") {
+		// The authored option order IS the answer; correctAnswer restates it so a slip is caught here.
+		const entries = coerceCorrectAnswer(input.correctAnswer, keys);
+		if (input.multiSelect) problems.push('format "order" takes no multiSelect: the learner taps every option, in order.');
+		if (entries.length !== keys.length || entries.some((v, i) => v !== keys[i]))
+			problems.push(`format "order": list the options in the correct order, and give correctAnswer as every option value in that same order (${keys.map((k) => `"${k}"`).join(", ")}).`);
+		return problems;
+	}
 
 	// Preserve exact option keys before trying copy-syntax cleanup — the
 	// same option-aware coercion runs at the display and grading seams.
@@ -139,6 +155,38 @@ export function quizInputProblems(input: {
 		);
 	}
 	return problems;
+}
+
+/** The tap formats a teach check can take (owner, 2026-10-27): plain
+ *  multiple choice by default, or a derivation/code exercise built from
+ *  `lines`. */
+export const QUIZ_FORMATS = ["choice", "next_step", "fill_blank", "order", "spot_error"] as const;
+export type QuizFormat = (typeof QUIZ_FORMATS)[number];
+/** The slot marker in a fill_blank line. */
+export const BLANK = "___";
+
+/** Normalize a persisted quiz `format`: absent or unknown is plain choice. */
+export function normalizeQuizFormat(raw: unknown): QuizFormat {
+	return typeof raw === "string" && (QUIZ_FORMATS as readonly string[]).includes(raw) ? (raw as QuizFormat) : "choice";
+}
+
+/** A fill_blank line with its slot shown: empty (`label` undefined) or
+ *  holding the chosen option. Code lines take the label as plain text;
+ *  a line with maths boxes the slot inside the maths (KaTeX cannot be
+ *  split around a widget); prose bolds it.
+ *  shortcut: a line counts as maths if it has any $, \( or \[, so a prose
+ *  line with an inline formula boxes a prose blank; split lines if that bites. */
+export function fillBlankLine(line: string, label: string | undefined, language?: string): string {
+	if (!line.includes(BLANK)) return line;
+	const bare = label?.trim();
+	// A replacer function: a string replacement would expand `$` patterns in the label.
+	const put = (text: string) => line.replace(BLANK, () => text);
+	if (language) return put(bare ? bare.replace(/^`+|`+$/g, "") : "▢▢▢");
+	if (/\$|\\\(|\\\[/.test(line)) {
+		const math = bare?.replace(/^\$\$?|\$\$?$/g, "").replace(/^\\[([]|\\[)\]]$/g, "").trim();
+		return put(math ? `\\boxed{${math}}` : "\\boxed{\\;?\\;}");
+	}
+	return put(bare ? `**${bare}**` : "\\_\\_\\_");
 }
 
 // The SHARED quiz authoring fields — everything except `nodeId`. The probe
@@ -261,6 +309,24 @@ export const quizInputObject = Type.Object({
 			"one node for as many turns as the understanding needs — one reasoning step at a time, never rush forward. " +
 			"For off-map checks use ask_user_question.",
 	}),
+	format: Type.Optional(
+		Type.Union(QUIZ_FORMATS.map((f) => Type.Literal(f)), {
+			description:
+				"How the check is answered. choice (default): pick an option. next_step: `lines` is the derivation or code so far, " +
+				"the options are candidate next lines. fill_blank: `lines` contain exactly one ___, the options are what fills it. " +
+				"order: the options are the lines of the correct derivation or code IN THE CORRECT ORDER (shown shuffled; the learner " +
+				"taps them into order) and correctAnswer lists every option value in that order. spot_error: the options are the lines " +
+				"of a worked derivation or snippet, in order, and correctAnswer is the one wrong line.",
+		}),
+	),
+	lines: Type.Optional(
+		Type.Array(Type.String(), {
+			description: "The derivation or code shown above the options, one line per entry (maths as $$…$$ or \\(…\\); code as plain text with `language` set).",
+		}),
+	),
+	language: Type.Optional(
+		Type.String({ description: "Set for code (e.g. \"python\"): lines and options render as monospaced code." }),
+	),
 	...quizInputBase.properties,
 });
 
@@ -283,6 +349,9 @@ export const probeQuizInputSchema = quizInputBase;
 export const quizDisplayInputSchema = Type.Object({
 	...quizInputBase.properties,
 	type: Type.Optional(Type.String()),
+	format: Type.Optional(Type.String()),
+	lines: Type.Optional(Type.Array(Type.String())),
+	language: Type.Optional(Type.String()),
 });
 
 // ─── the explain tool (free-recall quizzing, owner 2026-09-27) ─────────────
@@ -414,6 +483,11 @@ export interface QuestionData {
 	 *  (after it, behind the reveal). Absent on probe quizzes and old
 	 *  records — everything check-shaped. */
 	questionType?: QuizQuestionType;
+	/** quiz only: the tap format and its lines (absent = plain choice). For
+	 *  `order`, correctIndices is the correct SEQUENCE, not a set. */
+	format?: QuizFormat;
+	lines?: string[];
+	language?: string;
 	question: string;
 	context?: string;
 	mode: QuestionMode;
@@ -442,6 +516,10 @@ export interface QuestionAnswerData {
 	 *  prediction tucks its explanation) and later calibration splits.
 	 *  Absent on old records and probe answers. */
 	questionType?: QuizQuestionType;
+	/** quiz only: the tap format snapshot for rendering (absent = plain choice). */
+	format?: QuizFormat;
+	lines?: string[];
+	language?: string;
 	questionText: string;
 	options?: { index: number; label: string }[]; // snapshot for rendering
 	dontKnow: boolean;
@@ -716,8 +794,12 @@ export function buildAnswer(qd: QuestionData, req: AnswerRequest, tool?: string)
 		thinking: req.thinking?.trim() || undefined,
 		readingThinking: req.readingThinking?.trim() || undefined,
 		answeredAt: new Date().toISOString(),
+		...(qd.format && qd.format !== "choice" ? { format: qd.format } : {}),
+		...(qd.lines?.length ? { lines: qd.lines } : {}),
+		...(qd.language ? { language: qd.language } : {}),
 	};
-	// resolve selected option values → OptionAnswer (in display order)
+	const ordered = qd.format === "order";
+	// resolve selected option values → OptionAnswer (display order; an `order` answer keeps the tapped sequence)
 	if (req.values && req.values.length > 0) {
 		const byValue = new Map(qd.options.map((o, i) => [o.value, { ...o, index: i + 1 }]));
 		for (const v of req.values) {
@@ -725,7 +807,7 @@ export function buildAnswer(qd: QuestionData, req: AnswerRequest, tool?: string)
 			if (!opt) continue; // unknown value — ignore
 			base.answers.push({ label: opt.label, value: opt.value, index: opt.index });
 		}
-		base.answers.sort((a, b) => a.index - b.index);
+		if (!ordered) base.answers.sort((a, b) => a.index - b.index);
 	}
 	if (req.other?.trim()) base.other = req.other.trim();
 	if (req.text?.trim()) base.text = req.text.trim();
@@ -733,7 +815,9 @@ export function buildAnswer(qd: QuestionData, req: AnswerRequest, tool?: string)
 	if (qd.kind === "quiz") {
 		base.correctIndices = qd.correctIndices ?? [];
 		base.explanation = qd.explanation;
-		base.correct = base.dontKnow ? false : isCorrect(base.answers.map((a) => a.index), qd.correctIndices ?? []);
+		const picked = base.answers.map((a) => a.index);
+		const key = qd.correctIndices ?? [];
+		base.correct = base.dontKnow ? false : ordered ? picked.length === key.length && picked.every((v, i) => v === key[i]) : isCorrect(picked, key);
 		// The confidence slider rides on real quiz answers only — never on
 		// "I don't know" (no answer, no probability). Clamped defensively;
 		// the dock snaps to the grid, the record accepts any integer.
@@ -785,6 +869,7 @@ export function compactAnswerForModel(ad: QuestionAnswerData): Record<string, un
 	if (ad.dismissed) return { kind: ad.kind, dismissed: true };
 	const out: Record<string, unknown> = { kind: ad.kind };
 	if (ad.dontKnow) out.dontKnow = true;
+	if (ad.format === "order") out.order = "answers are in the order the learner placed them";
 	// Array.isArray: the seam is called with `unknown` answers (test
 	// fixtures, foreign records) — degrade to omission, never crash.
 	if (Array.isArray(ad.answers) && ad.answers.length > 0)

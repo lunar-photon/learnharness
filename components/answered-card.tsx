@@ -6,7 +6,7 @@ import { ThinkingBlock } from "@/components/thinking-block";
 import { cn } from "@/lib/utils";
 import { ToolContentResponse } from "@/components/ai-elements/message";
 import type { QuestionAnswerData } from "@/src/core";
-import { answerForPresentation, parseAskInput, parseQuizInput } from "@/src/core";
+import { answerForPresentation, fillBlankLine, parseAskInput, parseQuizInput } from "@/src/core";
 
 /**
  * Static rendering of an answered question (tool part in `output-available`).
@@ -33,6 +33,11 @@ export function AnsweredCard({ answer: savedAnswer, input }: { answer: QuestionA
 	const isExplain = answer.kind === "explain";
 	const selectedIdx = new Set(answer.answers.map((a) => a.index));
 	const correctIdx = new Set(answer.correctIndices ?? []);
+	// Tap formats: code renders monospaced, the rest as lesson prose.
+	const piece = (text: string) =>
+		answer.language ? <code className="block whitespace-pre font-mono text-[0.9em]">{text}</code> : <ToolContentResponse>{text}</ToolContentResponse>;
+	const isOrder = answer.format === "order";
+	const labelOf = (index: number) => answer.options?.find((o) => o.index === index)?.label ?? "";
 	// The question's own context rides the ORIGINAL CALL, not the answer
 	// snapshot (owner, 2026-10-12): the details line — and, for ask
 	// questions, option descriptions — re-render from the persisted
@@ -96,7 +101,35 @@ export function AnsweredCard({ answer: savedAnswer, input }: { answer: QuestionA
 				</div>
 			)}
 
-			{((answer.options?.length ?? 0) > 0 || answer.other) && (
+			{answer.lines && answer.format !== "spot_error" && (
+				<div data-testid="answered-lines" className="lh-prose mb-3 flex flex-col gap-1 overflow-x-auto rounded-2xl border-2 border-[var(--lh-edge)] bg-muted px-4 py-3">
+					{answer.lines.map((line, i) => (
+						<div key={i}>{piece(answer.format === "fill_blank" ? fillBlankLine(line, answer.answers[0]?.label, answer.language) : line)}</div>
+					))}
+				</div>
+			)}
+			{isOrder && (
+				<div data-testid="answered-order" className="grid gap-3 text-sm sm:grid-cols-2">
+					{[
+						{ title: "Your order", seq: answer.answers.map((a) => a.index) },
+						...(answer.correct ? [] : [{ title: "Correct order", seq: answer.correctIndices ?? [] }]),
+					].map(({ title, seq }) => (
+						<ol key={title} className="m-0 flex list-none flex-col gap-1 p-0">
+							<li className="font-black">{title}</li>
+							{seq.map((index, k) => {
+								const right = answer.correctIndices?.[k] === index;
+								return (
+									<li key={k} className={cn("flex items-start gap-2 rounded-lg border px-3 py-1.5", right ? "border-green-500/60 bg-green-500/10" : "border-red-500/60 bg-red-500/10")}>
+										<span className="font-black">{k + 1}</span>
+										<span className="min-w-0">{piece(labelOf(index))}</span>
+									</li>
+								);
+							})}
+						</ol>
+					))}
+				</div>
+			)}
+			{!isOrder && ((answer.options?.length ?? 0) > 0 || answer.other) && (
 				<div className="flex flex-col gap-1.5 text-sm">
 					{answer.options?.map((opt) => {
 						const sel = selectedIdx.has(opt.index);
@@ -131,7 +164,7 @@ export function AnsweredCard({ answer: savedAnswer, input }: { answer: QuestionA
 									</span>
 								)}
 								<span className={cn(!sel && "text-muted-foreground")}>
-									<ToolContentResponse>{opt.label}</ToolContentResponse>
+									{piece(opt.label)}
 									{descByIndex.get(opt.index) && (
 										// Ask-option subtext (owner, 2026-10-12): same markdown path
 										// as the pending dock — LaTeX included. Quiz options carry

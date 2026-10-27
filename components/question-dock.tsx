@@ -10,6 +10,8 @@ import {
 	buildAnswer,
 	repairMathForDisplay,
 	normalizeQuizType,
+	normalizeQuizFormat,
+	fillBlankLine,
 	CONFIDENCE_STOPS,
 	emptyDockSelection,
 	normalizeOptions,
@@ -35,6 +37,9 @@ import {
 	type Phase3,
 } from "@/src/core";
 import { SurePopup, SURE_LABELS } from "@/components/sure-popup";
+
+/** The header hint per tap format. */
+const FORMAT_HINT: Partial<Record<string, string>> = { next_step: "tap the next line", fill_blank: "fill the blank", order: "tap the lines in order", spot_error: "tap the wrong line" };
 
 /** The popup's levels as confidence stops (the exam's four, in percent). */
 const SURE_STOPS = [50, 70, 90, 100] as const;
@@ -249,13 +254,23 @@ function QuestionDockForm({
 		const options = normalizeOptions(
 			(quizInput?.options ?? askInput?.options ?? []) as { label: string; value?: string }[],
 		);
-		const ordered = kind === "quiz" && options.length > 0 ? shuffleOptions(options, seededRandom(toolCallId)) : options;
+		const format = kind === "quiz" ? normalizeQuizFormat(quizInput?.format) : "choice";
+		// Code keeps its indentation (normalizeOptions trims labels).
+		if (quizInput?.language && Array.isArray(quizInput.options)) {
+			const raw = new Map(quizInput.options.map((o) => [o.value?.trim() || o.label.trim(), o.label.replace(/\s+$/, "")]));
+			for (const o of options) o.label = raw.get(o.value) ?? o.label;
+		}
+		// spot_error options ARE the worked lines, so they keep their order.
+		const ordered = kind === "quiz" && options.length > 0 && format !== "spot_error" ? shuffleOptions(options, seededRandom(toolCallId)) : options;
 		const q: QuestionData = {
 			id: toolCallId,
 			kind,
 			// The role (owner 2026-10-03): predict questions gate by it in the
 			// view (never collapsed) and the answered card tucks the explanation.
 			questionType: kind === "quiz" ? normalizeQuizType((input as { type?: unknown }).type) : undefined,
+			...(format !== "choice" ? { format } : {}),
+			...(quizInput?.lines?.length ? { lines: quizInput.lines } : {}),
+			...(quizInput?.language ? { language: quizInput.language } : {}),
 			question: input.question,
 			context: input.details,
 			mode,
@@ -265,7 +280,12 @@ function QuestionDockForm({
 		if (quizInput) {
 			const resolved = resolveCorrect(quizInput.correctAnswer, ordered);
 			if (resolved.error) console.error("[quiz] correctAnswer did not resolve:", resolved.error);
-			q.correctIndices = resolved.indices;
+			// An `order` key is the authored SEQUENCE (resolveCorrect returns a sorted set).
+			const byValue = new Map(ordered.map((o, i) => [o.value, i + 1]));
+			q.correctIndices =
+				format === "order"
+					? [quizInput.correctAnswer].flat().map((v) => byValue.get(String(v).trim())).filter((i): i is number => i !== undefined)
+					: resolved.indices;
 			q.explanation = quizInput.explanation;
 		}
 		if (explainInput) {
@@ -327,8 +347,13 @@ function QuestionDockForm({
 		dictationClaim && !noteOpen,
 	);
 
+	// `order`: the option indices in the order the learner tapped them.
+	const isOrder = qd.format === "order";
+	const [seq, setSeq] = useState<number[]>([]);
 	const answerable = (s: DockSelection) =>
-		qd.mode === "text"
+		isOrder
+			? s.dontKnow || seq.length === qd.options.length
+			: qd.mode === "text"
 			? answerTextRef.current.trim().length > 0
 			: s.dontKnow || (s.otherSelected && other.trim().length > 0) || s.selected.size > 0;
 	const canSubmit = qd.mode === "text" ? text.trim().length > 0 : answerable(sel);
@@ -353,7 +378,7 @@ function QuestionDockForm({
 		const confIdx = CONFIDENCE_STOPS.indexOf(SURE_STOPS[level]!);
 		const req: AnswerRequest = {
 			dontKnow: s.dontKnow,
-			values: [...s.selected].map((i) => qd.options[i]!.value),
+			values: (isOrder && !s.dontKnow ? seq : [...s.selected]).map((i) => qd.options[i]!.value),
 			other: s.otherSelected ? other : undefined,
 			text: qd.mode === "text" ? answerTextRef.current : undefined,
 			thinking: qd.mode !== "text" ? thinkingTextRef.current.trim() || undefined : undefined,
@@ -386,6 +411,11 @@ function QuestionDockForm({
 	 * once; multi-select toggles and its Done (quiz) or Send (ask) sends.
 	 * "I don't know" sends at once. */
 	const pickOption = (idx: number) => {
+		if (isOrder) {
+			// Tap places the line next; tapping a placed line takes it back.
+			setSeq((q) => (q.includes(idx) ? q.filter((i) => i !== idx) : [...q, idx]));
+			return setAsking(null);
+		}
 		const next = toggleOption(selectMode, sel, idx);
 		setSel(next);
 		if (selectMode === "multi-select") return setAsking(null);
@@ -394,8 +424,8 @@ function QuestionDockForm({
 	};
 	const pickDontKnow = () => submit({ sel: { selected: new Set(), otherSelected: false, dontKnow: true } });
 	const askSure = () => {
-		if (kind !== "quiz" || sel.selected.size === 0) return false;
-		setAsking(selectMode === "multi-select" ? optionCount : [...sel.selected][0]!);
+		if (kind !== "quiz" || (isOrder ? seq.length < optionCount : sel.selected.size === 0)) return false;
+		setAsking(selectMode === "multi-select" || isOrder ? optionCount : [...sel.selected][0]!);
 		return true;
 	};
 
@@ -520,6 +550,10 @@ function QuestionDockForm({
 			selected ? "border-[var(--lh-blue)] bg-[var(--lh-blue-tint)]" : "border-[var(--lh-edge)] bg-card hover:bg-muted",
 			walked && !selected && "ring-2 ring-[var(--lh-blue)]/40",
 		);
+	// Code renders as monospaced lines; everything else as lesson prose (maths included).
+	const piece = (text: string) =>
+		qd.language ? <code className="block whitespace-pre font-mono text-[0.9em] leading-relaxed">{text}</code> : <ToolContentResponse>{text}</ToolContentResponse>;
+	const chosen = qd.format === "next_step" || qd.format === "fill_blank" ? qd.options[[...sel.selected][0] ?? -1] : undefined;
 	const label =
 		toolName === "probe"
 			? "Probe"
@@ -547,6 +581,7 @@ function QuestionDockForm({
 					<span className="text-sm font-black text-[var(--lh-green)]">
 						{label}
 						{qd.mode === "multi-select" && <span className="font-bold text-muted-foreground"> · pick all that apply</span>}
+						{qd.format && FORMAT_HINT[qd.format] && <span className="font-bold text-muted-foreground"> · {FORMAT_HINT[qd.format]}</span>}
 					</span>
 					{note && (
 						<NoteThought
@@ -567,10 +602,65 @@ function QuestionDockForm({
 					</div>
 				)}
 
+				{qd.format && (
+					<div data-testid={`format-${qd.format}`} className="lh-prose mb-3 flex flex-col gap-1 overflow-x-auto rounded-2xl border-2 border-[var(--lh-edge)] bg-muted px-4 py-3">
+						{qd.format !== "spot_error" &&
+							qd.lines?.map((line, i) => (
+								<div key={i}>{piece(qd.format === "fill_blank" ? fillBlankLine(line, chosen?.label, qd.language) : line)}</div>
+							))}
+						{qd.format === "next_step" && (
+							<div data-testid="next-step-slot" className={cn("rounded-lg border-2 border-dashed px-2 py-1", chosen ? "border-[var(--lh-blue)] bg-[var(--lh-blue-tint)]" : "border-[var(--lh-edge)] text-muted-foreground")}>
+								{chosen ? piece(chosen.label) : "?"}
+							</div>
+						)}
+						{isOrder && (
+							<ol className="m-0 flex list-none flex-col gap-1 p-0" aria-label="Your order">
+								{seq.map((i, k) => (
+									<li key={qd.options[i]!.value}>
+										<button type="button" onClick={() => pickOption(i)} className="flex w-full items-start gap-2 rounded-lg bg-[var(--lh-blue-tint)] px-2 py-1 text-left" aria-label={`Step ${k + 1}, tap to take back`}>
+											<span className="font-black text-[var(--lh-blue)]">{k + 1}</span>
+											<span className="min-w-0">{piece(qd.options[i]!.label)}</span>
+										</button>
+									</li>
+								))}
+								{qd.options.slice(seq.length).map((o, k) => (
+									<li key={`empty-${o.value}`} aria-hidden className="rounded-lg border-2 border-dashed border-[var(--lh-edge)] px-2 py-1 text-muted-foreground">
+										{seq.length + k + 1}
+									</li>
+								))}
+							</ol>
+						)}
+						{qd.format === "spot_error" &&
+							qd.options.map((opt, i) => {
+								const isSel = sel.selected.has(i);
+								return (
+									<div key={opt.value}>
+										<button
+											type="button"
+											role="radio"
+											aria-checked={isSel}
+											data-kbdrow={i}
+											onClick={() => pickOption(i)}
+											className={cn(
+												"w-full rounded-lg px-2 py-1 text-left outline-none transition-colors hover:bg-card",
+												isSel && "bg-[var(--lh-coral-tint)] ring-2 ring-[var(--lh-orange)]",
+												i === kbdIdx && !isSel && "ring-2 ring-[var(--lh-blue)]/40",
+											)}
+										>
+											{piece(opt.label)}
+										</button>
+										{asking === i && surePopup}
+									</div>
+								);
+							})}
+					</div>
+				)}
+
 				{qd.mode !== "text" && (
 					<div className="flex flex-col gap-2" role={qd.mode === "multi-select" ? "group" : "radiogroup"}>
-						{qd.options.map((opt, i) => {
+						{qd.format !== "spot_error" && qd.options.map((opt, i) => {
 							const isSel = sel.selected.has(i);
+							if (isOrder && seq.includes(i)) return null;
 							return (
 								<div key={opt.value}>
 									<button
@@ -593,7 +683,7 @@ function QuestionDockForm({
 											</span>
 										)}
 										<span className="min-w-0">
-											<ToolContentResponse>{opt.label}</ToolContentResponse>
+											{piece(opt.label)}
 											{kind !== "quiz" && opt.description && (
 												<ToolContentResponse className="block text-sm text-muted-foreground">
 													{opt.description}
@@ -655,10 +745,10 @@ function QuestionDockForm({
 							</div>
 						)}
 
-						{qd.mode === "multi-select" && (
+						{(qd.mode === "multi-select" || isOrder) && (
 							<div>
 								{kind === "quiz" ? (
-									<button type="button" disabled={sel.selected.size === 0} onClick={askSure} className="lh-btn lh-btn-primary">
+									<button type="button" disabled={isOrder ? seq.length < optionCount : sel.selected.size === 0} onClick={askSure} className="lh-btn lh-btn-primary">
 										Done
 									</button>
 								) : (

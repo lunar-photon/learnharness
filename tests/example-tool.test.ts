@@ -15,7 +15,7 @@ describe("example library", () => {
 	it("indexes the owner's ten examples with a title and a lesson each", () => {
 		// The learner's own `mine-` examples live in their data dir and vary; the built-in ten are fixed.
 		const examples = listExamples().filter((e) => !e.id.startsWith("mine-"));
-		assert.equal(examples.length, 10);
+		assert.equal(examples.length, 11);
 		for (const e of examples) {
 			assert.ok(e.title && e.lesson, `${e.id} has a title and a Lesson: line`);
 		}

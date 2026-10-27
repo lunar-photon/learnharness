@@ -276,7 +276,7 @@ export async function driverNext(timeoutMs: number, signal?: AbortSignal): Promi
 	s.lastSeen = Date.now();
 	s.activePolls++;
 	try {
-		const deadline = Date.now() + Math.max(0, Math.min(timeoutMs, 60_000));
+		const deadline = Date.now() + Math.max(0, Math.min(timeoutMs, 600_000));
 		for (;;) {
 			const next = [...s.parked.values()].filter((p) => !p.claimedAt).sort((a, b) => a.createdAt - b.createdAt)[0];
 			if (next) {
