@@ -3,7 +3,7 @@ import * as path from "node:path";
 import { Type } from "typebox";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { PATHS } from "../../../config.ts";
-import type { ExamDefinition } from "../../core/contracts/exam.ts";
+import type { ExamDefinition, PyqItem } from "../../core/contracts/exam.ts";
 import { examIdForChat, examSummary, isHeldOut, scoreTest } from "../../core/exam.ts";
 import type { ExamStore } from "../../core/ports.ts";
 import type { ExamPipeline } from "../subagents/exam.ts";
@@ -61,14 +61,66 @@ function materialFiles(folder: string): string[] {
 	return out.sort();
 }
 
+/** Exams that ship ready (defaults/exams/<key>/: exam.json without id/chat,
+ *  plus a pyq.jsonl checked against the official key), loaded into a session
+ *  on request — the Exam prep screen's ready cards and `exam_load_ready`. */
+const READY_DIR = path.join(PATHS.root, "defaults", "exams");
+type ReadyTemplate = Omit<ExamDefinition, "id" | "chatId" | "createdAt">;
+
+export interface ReadyExam { key: string; name: string; questions: number }
+
+function readyBank(key: string): PyqItem[] {
+	const file = path.join(READY_DIR, key, "pyq.jsonl");
+	if (!fs.existsSync(file)) return [];
+	return fs.readFileSync(file, "utf-8").split("\n").filter((l) => l.trim()).map((l) => JSON.parse(l) as PyqItem);
+}
+
+export function readyExams(): ReadyExam[] {
+	let keys: string[];
+	try { keys = fs.readdirSync(READY_DIR).filter((k) => fs.existsSync(path.join(READY_DIR, k, "exam.json"))).sort(); } catch { return []; }
+	return keys.map((key) => {
+		const t = JSON.parse(fs.readFileSync(path.join(READY_DIR, key, "exam.json"), "utf-8")) as ReadyTemplate;
+		return { key, name: t.name, questions: readyBank(key).length };
+	});
+}
+
+/** Make `key` this chat's exam, with its PYQ bank. Refuses a session that already has an exam. */
+export function loadReadyExam(store: ExamStore, chatId: string, key: string): ExamDefinition {
+	if (!readyExams().some((r) => r.key === key)) throw new Error(`No ready exam "${key}". Ready: ${readyExams().map((r) => r.key).join(", ") || "(none)"}`);
+	const examId = examIdForChat(chatId);
+	if (store.getExam(examId)) throw new Error("This session already has an exam.");
+	const template = JSON.parse(fs.readFileSync(path.join(READY_DIR, key, "exam.json"), "utf-8")) as ReadyTemplate;
+	const exam: ExamDefinition = { ...template, id: examId, chatId, createdAt: new Date().toISOString() };
+	store.saveExam(exam);
+	const items = readyBank(key);
+	store.appendPyqs(examId, items);
+	for (const file of [...new Set(items.map((i) => i.source.file))]) {
+		store.recordExtraction(examId, { file, items: items.filter((i) => i.source.file === file).length, at: exam.createdAt, notes: "Shipped with the app, checked against the official final key." });
+	}
+	return exam;
+}
+
+const loadReadyInput = Type.Object({ key: Type.String({ minLength: 1, description: "The ready exam's key, from the list in this tool's description." }) });
+
 export function examTools(ctx: ExamToolContext): Record<string, AgentTool<any>> {
 	const examId = examIdForChat(ctx.chatId);
 	const current = (): ExamDefinition => {
 		const exam = ctx.examStore.getExam(examId);
-		if (!exam) throw new Error("No exam defined for this session yet: call exam_define first.");
+		if (!exam) throw new Error("No exam defined for this session yet: call exam_load_ready or exam_define first.");
 		return exam;
 	};
+	const ready = readyExams();
 	return {
+		exam_load_ready: {
+			name: "exam_load_ready",
+			label: "exam_load_ready",
+			description: `Load an exam that ships ready, pattern and checked PYQ bank included, instead of exam_define + exam_extract_pyqs. Ready: ${ready.map((r) => `${r.key} = ${r.name} (${r.questions} PYQs)`).join("; ") || "(none)"}.`,
+			parameters: loadReadyInput,
+			execute: serverExecute("exam_load_ready", loadReadyInput, ({ key }) => {
+				const exam = loadReadyExam(ctx.examStore, ctx.chatId, key);
+				return `Loaded "${exam.name}" with ${ctx.examStore.readPyqs(examId).length} PYQs. Dashboard: /exam/${examId}. Next: offer the first quiz.`;
+			}),
+		},
 		exam_define: {
 			name: "exam_define",
 			label: "exam_define",

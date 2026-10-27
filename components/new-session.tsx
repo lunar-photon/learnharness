@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { TrophyIcon } from "lucide-react";
 import { Conversation, ConversationContent, ConversationEmptyState } from "@/components/ai-elements/conversation";
 import { Composer } from "@/components/composer";
 import { DictationBar, joinDictation, useDictation } from "@/components/dictation";
@@ -13,6 +14,9 @@ import { StatsBar } from "@/components/stats-bar";
 import { ChainTableOverlay } from "@/components/chain-table.tsx";
 import { ComposerActions, NodePickerControl } from "@/components/composer-actions";
 import type { ChatSettings, GraphSnapshot } from "@/src/core";
+
+/** An exam that ships with its pattern and checked past papers (GET /api/exams `ready`). */
+type ReadyExam = { key: string; name: string; questions: number };
 
 /** The draft's pick set (owner round 10): the SAME shape the home pick
  *  bar lifts — resolved nodes as the learner SAW them at pick time. */
@@ -45,6 +49,7 @@ export async function startDraftSession(
 	fetchLike: typeof fetch,
 	mode?: "practice" | "exam",
 	picks?: readonly DraftPick[],
+	ready?: string,
 ): Promise<string | null> {
 	const t = text.trim();
 	if (!t) return null;
@@ -58,7 +63,7 @@ export async function startDraftSession(
 		body: JSON.stringify(
 			mode === "practice"
 				? { title: t, kind: "practice", ...(picks && picks.length > 0 ? { graphContext: { propositions: picks } } : {}) }
-				: mode === "exam" ? { title: t, kind: "exam" } : { title: t },
+				: mode === "exam" ? { title: t, kind: "exam", ...(ready ? { ready } : {}) } : { title: t },
 		),
 	});
 	const { id } = (await res.json()) as { id: string };
@@ -83,6 +88,7 @@ export function DraftShell({
 	onOpenPicker,
 	onClearPicks,
 	overlay,
+	readySlot,
 }: {
 	busy: boolean;
 	text: string;
@@ -108,6 +114,8 @@ export function DraftShell({
 	 *  INSIDE the content column's relative container — the same law as
 	 *  the graph view (the overlay fills its column, never the sidebar).
 	 *  Passed as a node so the pick state stays in NewSession. */
+	/** Exam prep: the "Ready to start" cards for exams that ship ready. */
+	readySlot?: ReactNode;
 	overlay?: ReactNode;
 }) {
 	// Voice dictation (STT wave, 2026-09-17): finals append at the end of the
@@ -181,6 +189,7 @@ export function DraftShell({
 												: "The teacher will open by probing what you already know."
 									}
 								/>
+								{readySlot}
 							</ConversationContent>
 						</Conversation>
 						<div className="h-24 bg-gradient-to-t from-background via-background/85 to-transparent" />
@@ -287,8 +296,14 @@ export function NewSession({ initialConfigured, mode = "teach" }: { initialConfi
 	const strongKeyless = useStrongKeyless();
 	const [setupOpen, setSetupOpen] = useState(false);
 
-	const send = useCallback(() => {
-		const draft = textRef.current.trim();
+	const [ready, setReady] = useState<ReadyExam[]>([]);
+	useEffect(() => {
+		if (mode !== "exam") return;
+		fetch("/api/exams", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).then((b) => setReady(b?.ready ?? [])).catch(() => {});
+	}, [mode]);
+
+	const send = useCallback((readyExam?: ReadyExam) => {
+		const draft = readyExam ? readyExam.name : textRef.current.trim();
 		if (!draft || busy) return;
 		if (!configured) {
 			setSetupOpen(true);
@@ -304,7 +319,7 @@ export function NewSession({ initialConfigured, mode = "teach" }: { initialConfi
 			return;
 		}
 		setBusy(true);
-		void startDraftSession(draft, fetch, mode === "teach" ? undefined : mode, mode === "practice" ? picksRef.current : undefined)
+		void startDraftSession(draft, fetch, mode === "teach" ? undefined : mode, mode === "practice" ? picksRef.current : undefined, readyExam?.key)
 			.then((target) => {
 				if (target) router.push(target);
 				else setBusy(false);
@@ -318,8 +333,28 @@ export function NewSession({ initialConfigured, mode = "teach" }: { initialConfi
 				busy={busy}
 				text={text}
 				onChange={applyText}
-				onSend={send}
+				onSend={() => send()}
 				mode={mode}
+				readySlot={ready.length > 0 && (
+					<section aria-labelledby="ready-title" className="pointer-events-auto mx-auto mb-6 flex w-full max-w-[46rem] flex-col gap-2 px-4">
+						<h2 id="ready-title" className="font-ui text-sm font-black">Ready to start</h2>
+						{ready.map((r) => (
+							<button
+								key={r.key}
+								type="button"
+								disabled={busy}
+								onClick={() => send(r)}
+								className="flex items-center gap-3 rounded-2xl border-2 border-b-4 border-[var(--lh-edge)] bg-card p-4 text-left transition-colors hover:bg-[var(--lh-gold-tint)] disabled:opacity-50"
+							>
+								<TrophyIcon aria-hidden="true" className="size-7 shrink-0 text-[var(--lh-gold)]" />
+								<span className="flex min-w-0 flex-col">
+									<span className="font-black">{r.name}</span>
+									<span className="text-sm font-bold text-muted-foreground">{r.questions} past questions, checked against the official key. Start with a quiz.</span>
+								</span>
+							</button>
+						))}
+					</section>
+				)}
 				picks={picks}
 				onOpenPicker={openPicker}
 				onClearPicks={() => applyPicks([])}

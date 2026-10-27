@@ -87,21 +87,26 @@ describe("exam routes", () => {
 	});
 });
 
-describe("default exams", () => {
-	it("creates the shipped CGL exam once, quiz-ready, and never brings a deleted one back", async () => {
-		const { ensureDefaultExams } = await import("../src/server/exams.ts");
-		const { chatStore } = await import("../src/store/chats.ts");
+describe("ready exams", () => {
+	it("lists the shipped CGL exam and loads it only into a session that asks for it", async () => {
+		const chats = await import("../app/api/chats/route.ts");
 		const before = examStore.listExams().length;
-		ensureDefaultExams();
-		const cgl = examStore.listExams().find((e) => e.folder === "CGL" && e.name.includes("Maharashtra"));
-		assert.ok(cgl, "the default CGL exam exists");
-		assert.equal(chatStore.getChat(cgl.chatId)?.kind, "exam");
+		await chats.GET();
+		assert.equal(examStore.listExams().length, before, "nothing is created just by listing");
+		const { ready } = await ((await import("../app/api/exams/route.ts")).GET()).json();
+		assert.deepEqual(ready.find((r: { key: string }) => r.key === "cgl"), { key: "cgl", name: "MPSC Combined Group B & C (Maharashtra CGL)", questions: 98 });
+
+		const post = (body: object) => chats.POST(new Request("http://t", { method: "POST", body: JSON.stringify(body) }));
+		assert.equal((await post({ title: "x", kind: "exam", ready: "nope" })).status, 400, "an unknown key creates nothing");
+		assert.equal(examStore.listExams().length, before);
+		const { id } = await (await post({ title: "MPSC CGL", kind: "exam", ready: "cgl" })).json();
+		const { examIdForChat } = await import("../src/core/exam.ts");
+		const cgl = examStore.getExam(examIdForChat(id));
+		assert.ok(cgl && cgl.folder === "CGL" && cgl.durationMin === 60);
 		assert.equal(examStore.readPyqs(cgl.id).length, 98);
 		assert.deepEqual(examStore.readExtractions(cgl.id).map((e) => e.items), [98]);
-		ensureDefaultExams();
-		assert.equal(examStore.listExams().length, before + 1, "seeded once");
-		fs.rmSync(path.join(TMP_DATA, "exams", cgl.id), { recursive: true });
-		ensureDefaultExams();
-		assert.equal(examStore.listExams().length, before, "a deleted default stays deleted");
+
+		const { loadReadyExam } = await import("../src/server/exams.ts");
+		assert.throws(() => loadReadyExam(examStore, id, "cgl"), /already has an exam/);
 	});
 });

@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { MenuShell } from "@/components/menu-shell";
 import { DeleteSessionDialog } from "@/components/delete-session-dialog";
 import type { ChatDeleteMode } from "@/src/core";
-import { DumbbellIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, PlusIcon, SearchIcon, SettingsIcon, TrophyIcon } from "lucide-react";
+import { DumbbellIcon, NetworkIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, PlusIcon, SearchIcon, SettingsIcon, TrophyIcon } from "lucide-react";
 import { ActivitySection } from "@/components/activity-dock";
 import { CoverageMenuBlock } from "@/components/extraction-coverage";
 import { LhMark } from "@/components/lh-mark";
@@ -660,15 +660,7 @@ function SessionsSidebar() {
 					    with the lights' own edge-inset as the gap. */}
 					{/* Hover mirrors the ghost toggle buttons (owner ask, 2026-09-17):
 					    same size-9 chip geometry, same hover:bg-accent treatment. */}
-					<Hint
-						// Kept (owner, subtlety round 2026-09-25) but to the RIGHT
-						// of the logo, carrying its real shortcut: ⌘G jumps to
-						// the graph view (keyboard-shortcuts routes it to "/",
-						// the same destination as this logo).
-						label="Home"
-						action="jump-graph"
-						side="right"
-					>
+					<Hint label="Home" side="right">
 						<Link
 							href="/"
 							aria-label="Home"
@@ -725,6 +717,17 @@ function SessionsSidebar() {
 						Exam prep
 						<span className="sr-only">create a new exam-prep session</span>
 					</button>
+					<Hint label="Knowledge map" action="jump-graph" side="right">
+						<button
+							type="button"
+							data-testid="open-map"
+							onClick={() => router.push("/map")}
+							className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs uppercase tracking-wider text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+						>
+							<NetworkIcon className="size-3" />
+							Knowledge map
+						</button>
+					</Hint>
 				</div>
 
 				<div className="mx-3 mb-2 flex items-center gap-2">
