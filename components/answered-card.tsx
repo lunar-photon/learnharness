@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { ConfidenceRail } from "@/components/confidence-rail";
 import { GlyphMark } from "@/components/ui/glyph-mark";
 import { ThinkingBlock } from "@/components/thinking-block";
 import { cn } from "@/lib/utils";
@@ -52,7 +51,7 @@ export function AnsweredCard({ answer: savedAnswer, input }: { answer: QuestionA
 		    ThinkingBlock, instead of an inset inside the answer. Same muted
 		    rail as before; the label is now plain "Your thinking". */}
 		{answer.readingThinking && (
-			<ThinkingBlock testId="reading-thinking-block" label="YOUR THINKING" text={answer.readingThinking} defaultOpen />
+			<ThinkingBlock testId="reading-thinking-block" label="Thinking while reading" text={answer.readingThinking} defaultOpen />
 		)}
 		{/* [&>*:last-child]:mb-0 (owner round, 2026-10-07): on ask cards the
 		    thinking row is the last child — its my-3 stacked with the card's
@@ -62,7 +61,7 @@ export function AnsweredCard({ answer: savedAnswer, input }: { answer: QuestionA
 			className="rounded-xl border bg-card p-4 text-card-foreground [&>*:last-child]:mb-0"
 			data-testid="answered-card"
 		>
-			<div className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+			<div className="mb-1 flex items-center gap-2 text-sm font-black text-[var(--lh-green)]">
 				{/* The tool's OWN name first (owner 2026-10-09): probe-phase
 			    cards label Probe/Recall — the phase boundary visible in the
 			    transcript. No `tool` on old records: kind labels as before. */}
@@ -161,20 +160,12 @@ export function AnsweredCard({ answer: savedAnswer, input }: { answer: QuestionA
 
 			{answer.text && <div className="lh-prose mt-2 whitespace-pre-wrap">“{answer.text}”</div>}
 
-			{/* The confidence record (owner round 6): the slider's rail, disc
-			    removed — the missing handle itself says "this is a record, not a
-			    control". Same paint, same ticks, same ramp, same % read-out as the
-			    live dock. Quiz answers only, and only when a confidence exists:
-			    "I don't know" sent none (its slider was grayed out), explain and
-			    ask never had one, and records from before the feature carry no
-			    field — nothing to show, nothing rendered. */}
+			{/* The confidence record: a chip, quiz answers only, and only when one
+			    exists ("I don't know", explain, ask and old records carry none). */}
 			{isQuiz && answer.confidence != null && (
-				<div className="mt-3 flex items-center gap-3" data-testid="answered-confidence">
-					<ConfidenceRail value={answer.confidence} className="min-w-0 flex-1" />
-					<span className="w-9 shrink-0 text-right font-mono text-sm tabular-nums text-muted-foreground">
-						{answer.confidence}%
-					</span>
-				</div>
+				<span data-testid="answered-confidence" className="mt-3 inline-block rounded-full border-2 border-[var(--lh-gold)] bg-[var(--lh-gold-tint)] px-3 py-0.5 text-sm font-extrabold text-[var(--lh-gold-text)]">
+					{answer.confidence === 100 ? "Certain" : `${answer.confidence}% sure`}
+				</span>
 			)}
 			{answer.dontKnow && isQuiz && (
 				<div className="mt-2 text-sm text-muted-foreground">Answered “I don't know”.</div>
@@ -187,7 +178,7 @@ export function AnsweredCard({ answer: savedAnswer, input }: { answer: QuestionA
 				    the accent lift read too light); rail only, heights identical. */
 				<ThinkingBlock
 					testId="your-thinking"
-					label="YOUR THINKING"
+					label="Your thinking"
 					text={answer.thinking ?? answer.note ?? ""}
 					inCard
 				/>

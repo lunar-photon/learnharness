@@ -27,7 +27,7 @@ import {
 	buildAnswer,
 	normalizeOptions,
 	resolveCorrect,
-	questionNeedsReveal,
+	isTeachCheck,
 	type QuestionData,
 } from "../src/core/question-core.ts";
 
@@ -87,11 +87,10 @@ describe("question submission draft restoration", () => {
 		confidenceIndex: 4,
 	};
 
-	it("restores a quiz selection, thinking, and confidence when its form remounts", () => {
+	it("restores a quiz selection when its form remounts (the popup reopens on the next tap)", () => {
 		const html = renderToStaticMarkup(<QuestionDock toolName="quiz" toolCallId="q1" input={quizInput} expanded onExpand={() => {}} onSubmit={() => {}} initialDraft={draft} />);
 		assert.match(html, /role="radio" aria-checked="true" data-kbdrow="0"/);
-		assert.ok(html.includes("preserved reasoning"));
-		assert.ok(html.includes("90%"));
+		assert.ok(!html.includes('data-testid="sure-popup"'), "How sure? waits for a tap");
 	});
 
 	it("restores an ask's custom answer and a free-text answer", () => {
@@ -168,14 +167,11 @@ describe("render smoke tests", () => {
 		assert.match(html, /Which planet is closest to the sun\?/);
 		assert.match(html, /Mercury/);
 		assert.match(html, /I don&#x27;t know|I don't know/);
-		// The learner's voice: a labeled "Your thinking" composer-twin lives
-		// INSIDE the dock — never called optional, inviting the dump.
-		assert.ok(html.includes('data-testid="thinking-field"'), "thinking field present");
-		assert.match(html, /YOUR THINKING/, "labeled as the learner's voice (all caps, owner round 3)");
-		assert.match(html, /Why this answer\? Whatever comes to mind/, "placeholder invites, not apologizes (owner, placeholder round 2026-10-07)");
-		assert.ok(!html.includes("optional"), "the field is never called optional");
-		assert.match(html, /Submit answer/, "send becomes Submit answer");
-		assert.match(html, /↵ submits · ⇧↵ newline/, "the standard chord is discoverable (owner round 5)");
+		// One tap answers (owner, 2026-10-27): no thinking box, slider or
+		// Submit button — the tap opens "How sure?" and its level sends.
+		assert.ok(!html.includes('data-testid="thinking-field"'), "no standing thinking box");
+		assert.ok(!html.includes('type="range"'), "no confidence slider");
+		assert.ok(!html.includes("Submit"), "no Submit button");
 		// The v1 desync bug: options are buttons with ARIA roles, not native inputs.
 		assert.ok(!html.includes('type="radio"'), "no native radio inputs");
 		assert.ok(html.includes('role="radio"'), "button-based radio role present");
@@ -199,8 +195,7 @@ describe("render smoke tests", () => {
 		assert.match(html, /Type your own answer/, "type directly into the option");
 		assert.ok(html.includes('role="radio"'), "Other row keeps the option role");
 		assert.match(html, /aria-checked="false"/, "circle starts unfilled");
-		assert.ok(html.includes('data-testid="thinking-field"'), "thinking field coexists with Other");
-		assert.match(html, /YOUR THINKING/, "ask select-mode also gets the learner's voice");
+		assert.ok(!html.includes(">Send<"), "a single-choice ask sends on tap, no Send button");
 	});
 
 	it("multi-select ask renders checkbox rows and the select-all hint", () => {
@@ -213,7 +208,8 @@ describe("render smoke tests", () => {
 				options: [{ label: "Physics" }, { label: "Philosophy" }],
 			} as never,
 		});
-		assert.match(html, /select all that apply/);
+		assert.match(html, /pick all that apply/);
+		assert.match(html, />Send</, "a multi-choice ask sends with its Send button");
 		assert.ok(html.includes('role="group"'), "checkbox group");
 		assert.ok((html.match(/role="checkbox"/g) ?? []).length >= 3, "options AND the Other row are checkboxes");
 		assert.ok(html.includes('data-testid="other-option"'), "Other is still an option row in multi-select");
@@ -234,24 +230,6 @@ describe("render smoke tests", () => {
 		});
 		assert.ok(html.includes('data-testid="malformed-question"'));
 		assert.match(html, /malformed/);
-	});
-
-	it("phase scales the thinking field: teaching invites depth, probing stays quick", () => {
-		const teach = renderToStaticMarkup(
-			<QuestionDock
-				toolName="quiz"
-				toolCallId="t1"
-				input={quizInput as never}
-				expanded={true}
-				phase="teach"
-				onExpand={() => {}}
-				onSubmit={() => {}}
-			/>,
-		);
-		assert.ok(teach.includes("min-h-[4.5rem]"), "teach: a generous dump area");
-		const probe = renderDock({ toolName: "quiz", toolCallId: "q1", input: quizInput as never });
-		assert.ok(!probe.includes("min-h-[4.5rem]"), "probe (default): stays compact");
-		assert.ok(probe.includes("min-h-10"), "probe: one quiet row");
 	});
 
 	it("text-mode asks keep Enter-to-submit and the answer label", () => {
@@ -278,13 +256,13 @@ describe("render smoke tests", () => {
 		assert.ok(html.includes('data-mark="check"') && html.includes('data-mark="x"'));
 	});
 
-	it("AnsweredCard shows the confidence rail on quiz answers (record, no disc)", () => {
-		// The slider's rail, disc removed: same paint, same ticks, the % read-out.
+	it("AnsweredCard shows the confidence as a chip on quiz answers", () => {
 		const answer = buildAnswer(quizQD(), { values: ["Venus"], confidence: 70 });
 		const html = renderToStaticMarkup(<AnsweredCard answer={answer} />);
 		assert.match(html, /data-testid="answered-confidence"/);
-		assert.match(html, /data-testid="confidence-rail"/);
-		assert.match(html, /70%/);
+		assert.match(html, /70% sure/);
+		const certain = renderToStaticMarkup(<AnsweredCard answer={buildAnswer(quizQD(), { values: ["Venus"], confidence: 100 })} />);
+		assert.match(certain, />Certain</);
 		// It is a RECORD, not a control — no range input on the card.
 		assert.ok(!html.includes('type="range"'));
 	});
@@ -319,7 +297,7 @@ describe("render smoke tests", () => {
 		});
 		const html = renderToStaticMarkup(<AnsweredCard answer={answer} />);
 		assert.ok(html.includes('data-testid="your-thinking"'), "the thinking row exists");
-		assert.match(html, /YOUR THINKING/, "labeled as the learner's voice (all caps, owner round 3)");
+		assert.match(html, /Your thinking/, "labeled as the learner's voice");
 		// COLLAPSED ARRIVAL (owner round 2, 2026-10-05): the SSR output is the
 		// trigger row only — the thinking text is one click away, never loud.
 		assert.ok(html.includes('data-testid="your-thinking-trigger"'), "the trigger row");
@@ -424,25 +402,22 @@ describe("math rendering (streamdown + KaTeX)", () => {
 	});
 });
 
-describe("teach-check reveal (W5 phase separation)", () => {
-	// The collapsed dock renders the bar AND the hidden form (it stays mounted
-	// so a half-made selection survives) — assertions target the bar species.
-	it("teach-phase check collapses into the invitation bar, not the scroll bar", () => {
+describe("teach checks arrive open (no reveal step, owner 2026-10-27)", () => {
+	it("a teach check carries the Note a thought popup button, never a reveal strip", () => {
 		const html = renderToStaticMarkup(
 				<QuestionDock
 					toolName="quiz"
 					toolCallId="t1"
 					input={quizInput as never}
-					expanded={false}
-					reveal
+					expanded
+					note={{ value: "", onChange: () => {} }}
 					onExpand={() => {}}
 					onSubmit={() => {}}
 				/>,
 		);
-		assert.ok(html.includes('data-testid="teach-check-reveal"'), "invitation affordance present");
-		assert.match(html, /Check your understanding/);
-		assert.match(html, /Which planet is closest/, "question teaser invites, not minimizes");
-		assert.match(html, /Open/, "a clear reveal action");
+		assert.ok(!html.includes("Check your understanding"));
+		assert.ok(html.includes('data-testid="note-thought"'), "the note is one tap away");
+		assert.ok(!html.includes('data-testid="reading-thinking-field"'), "its box stays closed until tapped");
 	});
 
 	it("probe questions keep the plain collapsed bar (no invitation copy)", () => {
@@ -461,12 +436,10 @@ describe("teach-check reveal (W5 phase separation)", () => {
 		assert.match(html, /Answer/, "the strip keeps its Answer affordance");
 	});
 
-	it("after the reveal, the teach check renders the full form (probe default, unchanged)", () => {
-		// Post-click: expanded=true — exactly today's dock. The probe auto-open
-		// path renders the identical form; this is also the regression pin for it.
+	it("expanded, the check is its options and I don't know", () => {
 		const html = renderDock({ toolName: "quiz", toolCallId: "t1", input: quizInput as never });
 		assert.ok(html.includes('data-testid="question-dock"'), "the form is the dock's content once expanded");
-		assert.match(html, /Submit answer/);
+		assert.ok(!html.includes('data-testid="note-thought"'), "no note outside teach checks");
 	});
 });
 
@@ -700,7 +673,7 @@ describe("predict vs check rendering", () => {
 		const cardAt = html.indexOf("answered-card");
 		assert.ok(blockAt !== -1, "the lifted block renders");
 		assert.ok(blockAt < cardAt, "it sits ABOVE the answered card");
-		assert.ok(html.includes("YOUR THINKING"), "the plain label");
+		assert.ok(html.includes("Thinking while reading"), "the plain label");
 		assert.ok(!html.includes("Your thinking while reading"), "the old verbose label is gone");
 		assert.ok(!html.includes("your-reading-thinking"), "the in-card inset is gone");
 		// EXPANDED ARRIVAL (owner round two, 2026-10-07): transcript rows

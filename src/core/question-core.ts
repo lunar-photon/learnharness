@@ -220,16 +220,14 @@ export function normalizeQuizType(raw: unknown): QuizQuestionType | undefined {
 	return v === "predict" ? "predict" : v === "check" ? "check" : undefined;
 }
 
-/** The reveal law as a pure predicate (owner 2026-10-03; explain joined
- *  2026-10-09): a teach-phase CHECK collapses behind the "Check your
- *  understanding" reveal — a prediction NEVER does (it precedes the
- *  teaching and gates it; collapsing it would invert the cycle), and
- *  neither do probe/plan questions or ask. Both teach quizzing tools
- *  (quiz and explain) obey the same law. chat.tsx calls this for its
- *  pending question; the reading-thinking field mounts on the same
- *  truth. Records that predate the `type` field carry none — they render
- *  as checks, the standing default. */
-export function questionNeedsReveal(tool: string, rawInput: unknown, phase: string): boolean {
+/** Is this a teach-phase CHECK (owner 2026-10-03; explain joined
+ *  2026-10-09)? A check follows the teaching, so it carries the "Note a
+ *  thought" reading channel; a prediction never does (it precedes the
+ *  teaching), and neither do probe/plan questions or ask. Records that
+ *  predate the `type` field carry none — they count as checks, the
+ *  standing default. Checks arrive open like every question (owner,
+ *  2026-10-27: no reveal step). */
+export function isTeachCheck(tool: string, rawInput: unknown, phase: string): boolean {
 	if ((tool !== "quiz" && tool !== "explain") || phase !== "teach") return false;
 	return normalizeQuizType((rawInput as { type?: unknown } | null)?.type) !== "predict";
 }
@@ -243,8 +241,7 @@ const predictCheckType = Type.Union([Type.Literal("predict"), Type.Literal("chec
 	description:
 		"REQUIRED — the question's role in the teaching cycle, as a bare word (no quotes): predict = posed BEFORE " +
 		"you teach the step (its own turn; the learner answers, then your teaching resolves it — arrives open, never " +
-		"collapsed); check = posed AFTER the step's teaching is complete (arrives collapsed behind the Check your " +
-		"understanding reveal). ONE question per turn either way.",
+		"collapsed); check = posed AFTER the step's teaching is complete. ONE question per turn either way.",
 });
 
 
@@ -339,7 +336,7 @@ export const explainInputObject = Type.Object({
 
 /** The DISPLAY parse for persisted explain calls (tool-parts.ts): the
  *  base + `type` as an OPTIONAL plain string — exactly the quiz display
- *  pattern. Old records carry none; questionNeedsReveal treats them as
+ *  pattern. Old records carry none; isTeachCheck treats them as
  *  checks (the standing default). nodeId stays stripped (unknown key).
  *  The PROBE recall parses against the bare base. */
 export const explainDisplayInputSchema = Type.Object({

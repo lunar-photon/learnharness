@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CONFIDENCE_LEVELS, type ExamDefinition, type TestQuestion, type TestRecord, type TestResponse } from "@/src/core";
 import { MessageResponse } from "@/components/ai-elements/message";
 import { ExamResult, type ExamResultData } from "@/components/exam/exam-result";
+import { SurePopup } from "@/components/sure-popup";
 
 /**
  * The computer-based test page (docs/agent-driver-plan.md §6b): intro →
@@ -16,27 +17,12 @@ const btn = "lh-btn";
 const primary = "lh-btn lh-btn-primary";
 const confLabel = (c: number) => (c === 1 ? "Certain" : `${Math.round(c * 100)}%`);
 
-/** "How sure?" right where the answer was given: one tap, keys 1-4, Esc skips. */
+/** "How sure?" right where the answer was given (the shared popup); Skip leaves the answer without one. */
 function ConfidencePopup({ onPick, onSkip }: { onPick: (c: number) => void; onSkip: () => void }) {
 	return (
-		<div
-			role="dialog"
-			aria-label="How sure are you?"
-			className="mt-2 flex flex-wrap items-center gap-2 rounded-2xl border-2 border-[var(--lh-gold)] bg-[var(--lh-gold-tint)] px-3 py-2"
-			onKeyDown={(e) => {
-				const n = Number(e.key);
-				if (n >= 1 && n <= CONFIDENCE_LEVELS.length) { e.preventDefault(); onPick(CONFIDENCE_LEVELS[n - 1]!); }
-				if (e.key === "Escape") { e.preventDefault(); onSkip(); }
-			}}
-		>
-			<span className="text-sm font-extrabold text-[var(--lh-gold-text)]">How sure?</span>
-			{CONFIDENCE_LEVELS.map((c, k) => (
-				<button key={c} type="button" className={btn} autoFocus={k === 0} onClick={() => onPick(c)}>
-					{confLabel(c)}<span className="sr-only"> (key {k + 1})</span>
-				</button>
-			))}
-			<button type="button" className="ml-auto text-xs font-bold text-muted-foreground underline-offset-2 hover:underline" onClick={onSkip}>Skip</button>
-		</div>
+		<SurePopup onPick={(k) => onPick(CONFIDENCE_LEVELS[k]!)} onClose={onSkip}>
+			<button type="button" className="self-end text-xs font-bold text-muted-foreground underline-offset-2 hover:underline" onClick={onSkip}>Skip</button>
+		</SurePopup>
 	);
 }
 

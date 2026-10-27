@@ -292,6 +292,7 @@ export function Home({
 					    pills write /api/settings/models). */}
 					<StatsBar
 						dictationSlot={<DictationBar dictation={dictation} />}
+						dictating={dictation.active}
 						turns={[] as TurnUsage[]}
 						leadingSlot={
 							<div className="flex items-center gap-0.5 rounded-md border border-border/60 bg-background p-0.5" data-testid="home-mode-switch">

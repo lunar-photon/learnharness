@@ -19,4 +19,4 @@ Every explanation is a **predict → teach → check** cycle (one check per expl
 
 **predict → his prediction → teaching (resolving it) → check → his answer → your reaction → the next predict.**
 
-One question per turn, every turn, in that order. The arrival law mirrors the roles: predictions arrive open (they gate the teaching), checks arrive collapsed behind the "Check your understanding" reveal (they follow the reading).
+One question per turn, every turn, in that order. Both arrive open under your message: a prediction gates the teaching that follows it, a check follows the reading.

@@ -11,27 +11,27 @@ export function formatContextMeasurement(tokens: number | null, limit: number | 
 }
 
 /**
- * The below-composer stats bar (wave 4 observability): the session's
- * money/context footprint as one quiet row beneath the composer —
- * LEFT-aligned: context window + session cost; RIGHT-aligned: model +
- * thinking level. Clicking the left side opens the per-turn detail popover.
- *
- *  Pre-chat views (home, /chat/new) render NO left side at all (owner,
- *  wave 7 sweep: the knowledge-context budget slider that used to live
- *  there died with the injection; a "— · —" summary over an empty
- *  popover is pure noise) — the dictation strip's middle simply widens.
+ * The below-composer bar (wave 4 observability; owner, 2026-10-27: one ⋯
+ * menu, less to read): the leading slot (the map's mode switch), the live
+ * dictation meter while recording, and a ⋯ button whose menu holds the
+ * session's context and cost, the per-turn detail, Dictate, and the model +
+ * thinking controls. The menu stays mounted (hidden) so the model control
+ * keeps feeding the context limit.
  *
  * Spending arrives already priced by the server through Pi's catalog and
  * calculator. Missing cost stays "—", never fake zero. Context is a separate
  * completed-conversation measurement, never a money-log/summarizer fold or
  * transcript estimate. Its catalog denominator follows the selected model;
  * model changes preserve the numerator. Successful compaction clears it to ?.
+ * Pre-chat views (home, /chat/new) have no session data, so the menu shows
+ * only Dictate and the model controls.
  */
 export function StatsBar({
 	turns,
 	contextTokens = null,
 	pricing,
 	dictationSlot,
+	dictating = false,
 	chatId,
 	leadingSlot,
 }: {
@@ -43,30 +43,30 @@ export function StatsBar({
 	 *  record; absent on the draft surfaces, where it binds the strong
 	 *  slot (the new-session default). */
 	chatId?: string;
-	/** The dictation strip (STT wave, 2026-09-17): the row's middle is dead
-	 *  space between the session data and the model control — the mic
-	 *  button lives there, and while recording the meter unfurls to fill
-	 *  whatever width the row has (owner placement). */
+	/** The dictation control (STT wave): in the menu while idle; in the bar
+	 *  itself while recording, so the live meter and Stop stay in view. */
 	dictationSlot?: ReactNode;
-	/** The row's LEFT edge (practice sessions, 2026-10-04): the home
-	 *  composer's teach | practice switch rides here — before the session
-	 *  data (which renders nothing pre-chat on that surface). */
+	dictating?: boolean;
+	/** The row's LEFT edge (practice sessions, 2026-10-04): the map
+	 *  composer's teach | practice switch rides here. */
 	leadingSlot?: ReactNode;
 }) {
 	const [open, setOpen] = useState(false);
 	const [selectedModel, setSelectedModel] = useState<string | undefined>();
-	// Same dropdown discipline as the model control (owner, df4433f treatment,
-	// stats round 1): close on any pointerdown outside the bar or on Escape.
+	// Close on any pointerdown outside the menu (its own pickers' popups
+	// excepted) or on Escape.
 	const barRef = useRef<HTMLDivElement>(null);
 	useEffect(() => {
 		if (!open) return;
 		const onPointerDown = (e: PointerEvent) => {
-			if (barRef.current && !barRef.current.contains(e.target as Node)) setOpen(false);
+			const t = e.target as Element | null;
+			if (barRef.current?.contains(t) || t?.closest?.('[data-lh-menu], [data-radix-popper-content-wrapper], [role="menu"], [role="listbox"]')) return;
+			setOpen(false);
 		};
 		const onKeyDown = (e: KeyboardEvent) => {
 			if (e.key === "Escape") {
-				// THE ONE-ESC LAW (keyboard round 2026-10-06): claim — the
-				// window chain must not also act under this popover.
+				// Claimed at the document level: the one-Esc law (the menu is
+				// the surfaced layer, so the abort chain must not also fire).
 				e.preventDefault();
 				e.stopPropagation();
 				setOpen(false);
@@ -79,74 +79,47 @@ export function StatsBar({
 			document.removeEventListener("keydown", onKeyDown);
 		};
 	}, [open]);
-	// Catalog-only denominator; the picker reports its effective selection.
-	// Missing/pending catalog means usage-only, never a hardcoded maximum.
+
 	const { catalog } = useModelCatalog();
 	const limits = useMemo(() => (catalog ? catalogLimits(catalog) : undefined), [catalog]);
 	const limit = selectedModel ? limits?.get(selectedModel) ?? null : null;
 	const contextLabel = formatContextMeasurement(contextTokens, limit);
 	const { cost = 0, unpriced = turns.length, subscription = 0 } = pricing ?? {};
-	// Honest cost: show dollars only when at least one turn priced;
-	// otherwise "—" (never a fake $0.0000).
 	const pricedCount = turns.length - unpriced - subscription;
 	const providers = pricing?.subscriptionProviders ?? subscriptionLabels(turns.map((turn) => turn.model));
 	const costLabel = planCostLabel(pricedCount > 0 ? cost : null, providers);
+	const hasSession = !!chatId || turns.length > 0;
 
 	return (
-		<div
-			data-testid="stats-bar"
-			// pointer-events-auto: the sticky composer wrapper is pointer-events-none
-			// (so its transparent gradient area never blocks scrolling) — this row
-			// must re-enable events or every control on it is dead (the model-
-			// control wave caught this live: buttons rendered, clicks never landed).
-			className="pointer-events-auto relative flex items-center justify-between gap-3 px-3 pt-2 text-xs text-muted-foreground"
-		>
-			{/* The summary button + its popover: the popover anchors to this
-			    wrapper, CENTERED over the button itself (owner, stats round 2)
-			    — not over the whole bar row, which made it line up oddly. The
-			    outside-close ref anchors HERE too (owner, round 3): on the whole
-			    bar it wrapped the model control, so clicking model/thinking never
-			    counted as outside — the asymmetry the owner observed. */}
-			{/* The leading slot (2026-10-04): the leftmost control surface —
-			    the home composer's mode switch. */}
+		<div data-testid="stats-bar" className="pointer-events-auto relative flex items-center gap-3 px-3 pt-2 text-xs text-muted-foreground">
 			{leadingSlot}
-			{/* The left side: the session-data summary — only once a session
-			    exists (turns). Pre-chat renders nothing (see the header). */}
-			{(chatId || turns.length > 0) && (
-			<div ref={barRef} className="relative">
-				{/* No tooltip — the numbers describe themselves and the popover
-			    speaks on click (owner, subtlety round 2026-09-25). */}
-			<button
-				type="button"
-				onClick={() => setOpen((o) => !o)}
-				aria-expanded={open}
-				data-testid="stats-summary"
-				className="flex items-center gap-1.5 tabular-nums transition-colors hover:text-foreground"
-			>
-				<span data-testid="stats-context">
-					{contextLabel}
-				</span>
-				<span aria-hidden>·</span>
-				<span data-testid="stats-cost">{costLabel}</span>
-			</button>
-				{open && (
-					<div
-						data-testid="stats-detail"
-						className="absolute bottom-full left-1/2 z-40 mb-1.5 w-72 -translate-x-1/2 rounded-xl border bg-card p-3 text-xs shadow-xl"
-					>
-						<div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-							Session stats
-						</div>
-						<div className="flex flex-col gap-1 text-muted-foreground">
+			{dictating && dictationSlot && <div className="flex min-w-0 flex-1 items-center justify-center">{dictationSlot}</div>}
+			<div ref={barRef} className="relative ml-auto">
+				<button
+					type="button"
+					onClick={() => setOpen((o) => !o)}
+					aria-expanded={open}
+					aria-label="Session menu: stats, dictation, model"
+					data-testid="stats-menu"
+					className="flex h-7 w-9 items-center justify-center rounded-full text-lg font-black leading-none transition-colors hover:bg-muted hover:text-foreground"
+				>
+					⋯
+				</button>
+				<div
+					data-testid="stats-detail"
+					hidden={!open}
+					className="absolute bottom-full right-0 z-40 mb-1.5 w-80 rounded-2xl border-2 border-b-4 bg-card p-3 text-xs shadow-xl"
+				>
+					{hasSession && (
+						<div className="mb-3 flex flex-col gap-1 text-muted-foreground">
+							<div className="mb-1 text-sm font-black text-card-foreground">This session</div>
 							<div className="flex justify-between gap-2">
 								<span>Context (last call)</span>
-								<span className="tabular-nums text-card-foreground">
-									{contextLabel}
-								</span>
+								<span className="tabular-nums text-card-foreground" data-testid="stats-context">{contextLabel}</span>
 							</div>
 							<div className="flex justify-between gap-2">
 								<span>{subscription ? "Usage" : "Total cost"}</span>
-								<span className="tabular-nums text-card-foreground">{costLabel}</span>
+								<span className="tabular-nums text-card-foreground" data-testid="stats-cost">{costLabel}</span>
 							</div>
 							{providers.includes("ChatGPT") && <a href="https://chatgpt.com/settings/usage" target="_blank" rel="noreferrer" className="underline underline-offset-2">Manage ChatGPT usage</a>}
 							{unpriced > 0 && (
@@ -155,20 +128,13 @@ export function StatsBar({
 									<span className="tabular-nums text-card-foreground">{unpriced}</span>
 								</div>
 							)}
-						</div>
-						{turns.length > 0 && (
-							<>
-								<div className="mb-1 mt-2.5 border-t pt-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-									Turns
-								</div>
-								<ul className="flex max-h-56 flex-col gap-1 overflow-y-auto">
+							{turns.length > 0 && (
+								<ul className="mt-1 flex max-h-40 flex-col gap-1 overflow-y-auto border-t pt-1.5">
 									{turns.map((turn, i) => {
 										const c = pricing?.turnCosts[turn.id] ?? null;
 										return (
 											<li key={`${turn.messageId}-${i}`} className="flex items-center justify-between gap-2">
-												<span className="truncate text-muted-foreground">
-													#{i + 1} · {prettyModel(turn.model, true)}
-												</span>
+												<span className="truncate">#{i + 1} · {prettyModel(turn.model, true)}</span>
 												<span className="flex shrink-0 items-center gap-2 tabular-nums text-card-foreground">
 													<span className="text-muted-foreground">{turn.steps.length} steps</span>
 													<span>{subscriptionLabel(turn.model) ?? (c === null ? "—" : formatUsd(c))}</span>
@@ -177,22 +143,16 @@ export function StatsBar({
 										);
 									})}
 								</ul>
-							</>
-						)}
+							)}
+						</div>
+					)}
+					{!dictating && dictationSlot && <div className="mb-3 flex">{dictationSlot}</div>}
+					<div className="flex items-center justify-between gap-2">
+						<span className="text-sm font-black text-card-foreground">Model</span>
+						<ModelControl chatId={chatId} onModelChange={setSelectedModel} />
 					</div>
-				)}
+				</div>
 			</div>
-			)}
-			{/* The middle slot: dictation (owner, 2026-09-17). flex-1 lets the
-			    meter expand into the row's free width; justify-center keeps the
-			    lone idle mic button visually centered. */}
-			{dictationSlot && (
-				<div className="flex min-w-0 flex-1 items-center justify-center">{dictationSlot}</div>
-			)}
-			{/* The model + thinking control — one controller for the conversation
-			    agents (prober/teacher); the record's `turns` above still folds
-			    the ACTUAL models billed, regardless of what the picker says. */}
-			<ModelControl chatId={chatId} onModelChange={setSelectedModel} />
 		</div>
 	);
 }

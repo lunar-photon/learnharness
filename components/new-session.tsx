@@ -221,6 +221,7 @@ export function DraftShell({
 								</div>
 								<StatsBar
 									dictationSlot={<DictationBar dictation={dictation} />}
+									dictating={dictation.active}
 									turns={[]}
 								/>
 							</div>

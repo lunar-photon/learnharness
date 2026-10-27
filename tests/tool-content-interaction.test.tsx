@@ -29,12 +29,13 @@ test("actual select → submit → saved result → historical Why uses source d
 		assert.ok(choice);
 		await act(async () => choice.click());
 		assert.equal(choice.getAttribute("aria-checked"), "true");
-		const submit = [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent?.includes("Submit answer"))!;
-		assert.equal(submit.disabled, false);
-		// linkedom does not implement the browser's default button→form
-		// action; dispatch its native submit event through React instead.
-		await act(async () => submit.closest("form")!.dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })));
+		// The tap opens "How sure?" under the option; its level sends the answer.
+		const popup = host.querySelector('[data-testid="sure-popup"]');
+		assert.ok(popup, "the How sure? popup opens under the tapped option");
+		assert.equal(popup!.querySelector('[aria-pressed="true"]')?.textContent?.startsWith("Certain"), true, "it rests on Certain");
+		await act(async () => popup!.querySelector<HTMLButtonElement>('[data-testid="sure-3"]')!.click());
 		assert.ok(answer);
+		assert.equal(answer.confidence, 90, "the picked level is the answer's confidence");
 		assert.equal(answer.questionText, question);
 		assert.equal(answer.explanation, explanation);
 		assert.equal(answer.answers[0]!.value, label, "display recovery must not alter the submitted identity");

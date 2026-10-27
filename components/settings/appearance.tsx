@@ -154,6 +154,7 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
 	const mode = resolveAppearance(delta).mode;
 	useEffect(() => {
 		document.documentElement.classList.toggle("dark", mode === "dark");
+		window.lh?.setTheme?.(mode === "dark");
 	}, [mode]);
 
 	// One fetch per app load: the record (sanitized server-side) carries the

@@ -73,9 +73,8 @@ import {
 	phaseTimeline,
 	teachStepIndex,
 	toolQuestionKind,
-	questionNeedsReveal,
+	isTeachCheck,
 } from "@/src/core";
-import { ReadingThinkingField } from "@/components/reading-thinking";
 import { currentUserThinkingOpen, setAllUserThinkingOpen } from "@/components/thinking-block";
 import { examIdForChat, slotsConfigured, type ChatKind, type ExamUpdate, type ModelsSettings } from "@/src/core";
 import { useSettingsSaved } from "@/components/settings-signal";
@@ -500,16 +499,10 @@ export function Chat({
 		[send],
 	);
 
-	// Teach-phase check (W5, vision §2): a pending QUIZ that lands once a
-	// plan node is OCCUPIED (phaseAt3 "teach") starts collapsed behind a
-	// "Check your understanding" reveal button; probe- and plan-phase
-	// questions auto-open as today. Both teach quizzing tools obey the
-	// law (owner, 2026-10-09: explain checks join quiz checks behind the
-	// reveal); predictions of either mechanic and ask always arrive open.
-	// A pending question can never precede its phase's seam in the transcript (the teacher's turn
-	// ends at the question call), so the session's current phase IS the
-	// question's phase.
-	const requiresReveal = pending !== null && questionNeedsReveal(pending.tool, pending.input, phaseAt3(messages));
+	// Teach-phase check (W5, vision §2): a check that follows the teaching
+	// carries the "Note a thought" reading channel. Every question arrives
+	// open (owner, 2026-10-27: no reveal step).
+	const teachCheck = pending !== null && isTeachCheck(pending.tool, pending.input, phaseAt3(messages));
 
 	/* The READING-THINKING channel (owner 2026-10-03): a draft field for
 	 * thinking while reading the teaching prose, mounted while a check waits
@@ -1289,7 +1282,7 @@ export function Chat({
 								blurAfterPointerClick(e);
 								setPlanOpen(true);
 							}}
-							className="lh-no-drag flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-border/80 px-2 py-0.5 text-xs font-medium uppercase tracking-wide text-muted-foreground transition-colors hover:border-border hover:text-foreground"
+							className="lh-no-drag flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-border/80 px-2 py-0.5 text-xs font-bold text-muted-foreground transition-colors hover:border-border hover:text-foreground"
 						>
 							<WaypointsIcon className="size-3.5 text-primary" aria-hidden />
 							Plan
@@ -1311,7 +1304,7 @@ export function Chat({
 							data-testid="phase-chip"
 							data-phase="practice"
 							aria-hidden="true"
-							className="pointer-events-none flex shrink-0 select-none items-center gap-1 text-xs font-medium uppercase tracking-wide text-muted-foreground"
+							className="pointer-events-none flex shrink-0 select-none items-center gap-1 text-xs font-bold text-muted-foreground"
 						>
 							<DumbbellIcon className="size-3" />
 							Practice
@@ -1321,7 +1314,7 @@ export function Chat({
 							data-testid="phase-chip"
 							data-phase="exam"
 							href={`/exam/${examIdForChat(chatId)}`}
-							className="flex shrink-0 items-center gap-1 text-xs font-medium uppercase tracking-wide text-muted-foreground hover:text-foreground"
+							className="flex shrink-0 items-center gap-1 text-xs font-bold text-muted-foreground hover:text-foreground"
 						>
 							<TrophyIcon className="size-3" />
 							Exam prep · Dashboard
@@ -1398,7 +1391,7 @@ export function Chat({
 													<div
 														key={pi}
 														data-testid="practice-next-line"
-														className="my-4 flex items-center justify-center gap-1.5 font-ui text-xs font-medium uppercase tracking-wide text-muted-foreground"
+														className="my-4 flex items-center justify-center gap-1.5 font-ui text-xs font-bold text-muted-foreground"
 													>
 														<ArrowRightIcon className="size-3" />
 														Next problem
@@ -1460,7 +1453,7 @@ export function Chat({
 												{/* The rail GROUPS (owner round 4, 2026-10-05): the YOU heading
 												    sits INSIDE the rail, same mono-xs register and same 1ch
 												    rail as the thinking rows — one quote geometry. */}
-												<div className="font-medium uppercase tracking-wide text-muted-foreground">You</div>
+												<div className="font-bold text-muted-foreground">You</div>
 												<div className="lh-prose whitespace-pre-wrap text-foreground">
 													{m.parts.filter((p) => p.type === "text").map((p) => p.text).join("\n")}
 												</div>
@@ -1593,13 +1586,13 @@ export function Chat({
 						    the THINKING placeholder by construction (the gate sits
 						    BEFORE beginTurn; the settle kick runs after endTurn). */}
 							{compacting && (
-								<span className="flex items-center gap-2 font-ui text-xs font-medium uppercase tracking-wide text-muted-foreground">
+								<span className="flex items-center gap-2 font-ui text-xs font-bold text-muted-foreground">
 									<BrailleSpinner label="Compacting context" />
 									<Shimmer duration={1}>COMPACTING CONTEXT…</Shimmer>
 								</span>
 							)}
 							{(status === "submitted" || turnInFlight) && (
-								<span className="flex items-center gap-2 font-ui text-xs font-medium uppercase tracking-wide text-muted-foreground">
+								<span className="flex items-center gap-2 font-ui text-xs font-bold text-muted-foreground">
 									<BrailleSpinner label="Thinking" />
 									<Shimmer duration={1}>
 										THINKING…
@@ -1636,7 +1629,7 @@ export function Chat({
 					chatId={chatId}
 					plan={hasPlan ? <PlanMarginalia messages={messages} /> : undefined}
 					onOpenPlan={() => setPlanOpen(true)}
-					requiresReveal={requiresReveal}
+					teachCheck={teachCheck}
 					readingThinking={readingThinking}
 					onReadingThinking={applyReadingThinking}
 					phase={phases.at(-1) ?? "probe"}
@@ -1645,6 +1638,7 @@ export function Chat({
 					pricing={pricing}
 					onReserve={setDockReserve}
 					dictationSlot={<DictationBar dictation={dictation} />}
+					dictating={dictation.active}
 					dictationCancel={dictation.cancel}
 					queuedSteers={visibleQueuedSteers(steerQueue, nativeMessages)}
 					setupCta={
@@ -1771,14 +1765,6 @@ export function Chat({
  * stays MOUNTED while collapsed (hidden, not unmounted) so a half-made
  * selection survives.
  */
-/**
- * How a teach-phase question arrives (owner ruling, 2026-09-25): collapsed
- * behind the reveal button when it follows the composer — the learner
- * reads the teaching first — but OPEN when it follows another question
- * (a queued parallel check): the reading already happened, so there is
- * nothing left to wait for and the scroll height it already had is the
- * honest height.
- */
 /** The layered-Esc ruling (owner, 2026-10-04): an open overlay claims Esc —
  *  closing itself — before the abort chain may open its confirm. A mermaid
  *  focus, the plan popup, or the setup dialog over a pending question must
@@ -1825,10 +1811,6 @@ export function escAbortTarget(s: {
 	return null;
 }
 
-export function revealArrival(wasQuestion: boolean): { expanded: boolean; revealed: boolean } {
-	return wasQuestion ? { expanded: true, revealed: true } : { expanded: false, revealed: false };
-}
-
 /**
  * A PROBE question's arrival state (flicker round, 2026-09-26): open iff
  * the learner is at the bottom following along; scrolled up in history →
@@ -1863,7 +1845,7 @@ function DockOverlay({
 	practice,
 	compactionRunning,
 	onSubmitThinking,
-	requiresReveal,
+	teachCheck,
 	readingThinking,
 	onReadingThinking,
 	phase,
@@ -1878,6 +1860,7 @@ function DockOverlay({
 	plan,
 	onOpenPlan,
 	dictationSlot,
+	dictating,
 	dictationCancel,
 	setupCta,
 	queuedSteers,
@@ -1894,8 +1877,8 @@ function DockOverlay({
 	practice: { toolCallId: string; input: unknown } | null;
 	/** (commit, text) — the practice dock's two submit lanes. */
 	onSubmitThinking: (text: string) => void;
-	/** Teach-phase pending question: arrives collapsed behind the reveal button (W5). */
-	requiresReveal: boolean;
+	/** A teach-phase check: it carries the "Note a thought" reading channel. */
+	teachCheck: boolean;
 	/** The reading-thinking draft (owner 2026-10-03) — owned by ChatView so
 	 *  the submit + dismissal seams (outside this overlay) can merge it. */
 	readingThinking: string;
@@ -1923,6 +1906,8 @@ function DockOverlay({
 	/** The dictation strip (STT wave): rendered in the stats bar's middle
 	 *  slot — the mic button + live meter (components/dictation.tsx). */
 	dictationSlot?: React.ReactNode;
+	/** Recording now: the bar shows the live meter instead of hiding Dictate in its menu. */
+	dictating: boolean;
 	/** Esc in a pending question's field stops dictation (the strip is the
 	 *  stats bar's; the stop belongs to the page-owned hook, threaded down). */
 	dictationCancel?: () => void;
@@ -1939,15 +1924,7 @@ function DockOverlay({
 	// frame too late. Assigned per render like the other refs below.
 	const atBottomRef = useRef(isAtBottom);
 	atBottomRef.current = isAtBottom;
-	// Teach-phase mount (session reload with a pending check): the dock starts
-	// as the collapsed invitation too — the check must not pop open on reload.
-	const [expanded, setExpanded] = useState(!requiresReveal);
-	// Reveal state (W5): false until the learner clicks the invitation. While
-	// false, the scroll machine must NOT auto-expand at the bottom — the
-	// learner reads the teaching first and opens the check when ready. Once
-	// revealed, the normal collapse machine rules apply untouched.
-	const [revealed, setRevealed] = useState(false);
-	const revealPending = requiresReveal && !revealed;
+	const [expanded, setExpanded] = useState(true);
 
 	const pendingId = pending?.toolCallId ?? null;
 	const initialPendingRef = useRef(pendingId);
@@ -1963,13 +1940,8 @@ function DockOverlay({
 	// only motion is the teaching text itself.
 	const prevPendingIdRef = useRef(pendingId);
 	if (pendingId !== prevPendingIdRef.current) {
-		const wasQuestion = prevPendingIdRef.current !== null;
 		prevPendingIdRef.current = pendingId;
-		if (pendingId && requiresReveal) {
-			const arrival = revealArrival(wasQuestion);
-			setExpanded(arrival.expanded);
-			setRevealed(arrival.revealed);
-		} else if (pendingId) {
+		if (pendingId) {
 			// Probe arrival (flicker round): open iff following at the bottom.
 			// Painted in THIS render — no stale-open frame, no after-paint flip.
 			setExpanded(probeArrivalExpanded(atBottomRef.current));
@@ -1986,7 +1958,7 @@ function DockOverlay({
 	// starts in its initial state — no scroll, no morph.
 	useEffect(() => {
 		if (!pendingId || pendingId === initialPendingRef.current) return;
-		if (!requiresReveal && atBottomRef.current) void suppressFoldDuringReveal();
+		if (atBottomRef.current) void suppressFoldDuringReveal();
 		// fire only when a NEW question lands
 	}, [pendingId]);
 
@@ -2001,10 +1973,6 @@ function DockOverlay({
 	// replaces the composer and owns the band.
 	const pendingRef = useRef(!!pending || !!practice);
 	pendingRef.current = !!pending || !!practice;
-	const requiresRevealRef = useRef(requiresReveal);
-	requiresRevealRef.current = requiresReveal;
-	const revealedRef = useRef(revealed);
-	revealedRef.current = revealed;
 
 	// The plan marginalia's flank width (owner, plan-placement round): from
 	// the DOCK container's right edge to the block's right edge — the bare
@@ -2166,7 +2134,6 @@ function DockOverlay({
 		});
 	};
 	const expandAndReveal = () => {
-		setRevealed(true); // the teach-check invitation was accepted (W5)
 		setExpanded(true);
 		void suppressFoldDuringReveal();
 	};
@@ -2225,9 +2192,6 @@ function DockOverlay({
 				// left the bottom.
 				if (d > COLLAPSE_DIST && !expandIntentRef.current && !atBottomRef.current) setExpanded(false);
 			} else if (d < EXPAND_DIST) {
-				// Teach checks stay collapsed until the learner opens them (W5): the
-				// at-bottom auto-expand would pop the form over the teaching.
-				if (requiresRevealRef.current && !revealedRef.current) return;
 				setExpanded(true);
 				void scrollToBottom();
 			}
@@ -2316,27 +2280,6 @@ function DockOverlay({
 					    rounding starts, truncated, no background, no container. A
 					    line dies when its card lands (visibleQueuedSteers). */}
 					<QueuedSteersBody steers={queuedSteers} />
-					{/* The reading-thinking field (owner 2026-10-03): mounted while a
-					    teach-phase check waits — the same cue that collapses it. It
-					    claims dictated speech until the learner reveals the check
-					    (the dock reclaims then). Rides the check answer on submit. */}
-					{pending && requiresReveal && (
-						<ReadingThinkingField
-							value={readingThinking}
-							onChange={onReadingThinking}
-							onEscape={dictationCancel}
-							onOpen={
-								!expanded
-									? () => {
-											void finishDictation().then(() => {
-												expandAndRevealRef.current();
-											});
-										}
-									: undefined
-							}
-							claim={revealPending}
-						/>
-					)}
 					<div ref={shellRef} className="pointer-events-auto overflow-hidden rounded-2xl border bg-card shadow-lg">
 						<div
 						ref={contentRef}
@@ -2350,17 +2293,16 @@ function DockOverlay({
 									toolCallId={pending.toolCallId}
 									input={pending.input as never}
 									expanded={expanded}
-									reveal={revealPending}
+									note={teachCheck ? { value: readingThinking, onChange: onReadingThinking } : undefined}
 									phase={phase}
 									onExpand={expandAndReveal}
 									onSubmit={onSubmitAnswer}
 									initialDraft={initialQuestionDraft}
 									onSaveDraft={onSaveQuestionDraft}
 									onEscape={dictationCancel}
-									dictationClaim={!revealPending}
 									compactionRunning={compactionRunning}
 								/>
-								{(expanded || !requiresReveal) && <DoubtLine onAsk={onAskDoubt} disabled={compactionRunning} />}
+								{expanded && <DoubtLine onAsk={onAskDoubt} disabled={compactionRunning} />}
 								</>
 							) : practice ? (
 								<PracticeDock
@@ -2388,6 +2330,7 @@ function DockOverlay({
 						contextTokens={contextTokens}
 						pricing={pricing}
 						dictationSlot={dictationSlot}
+						dictating={dictating}
 						chatId={chatId}
 					/>
 					{/* The scroll-down disc (moved here from the Conversation,

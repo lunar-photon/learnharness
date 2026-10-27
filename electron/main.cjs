@@ -292,6 +292,12 @@ function killServer() {
  *    default, we do not);
  *  - will-navigate pinned to the app origin; window.open always denied —
  *    external links go to the real browser via shell.openExternal. */
+/** Window chrome per app theme: the native min/max/close overlay and the window background. */
+const WINDOW_THEME = {
+	light: { background: "#ffffff", overlay: { color: "#ffffff", symbolColor: "#1f2933" } },
+	dark: { background: "#141414", overlay: { color: "#141414", symbolColor: "#e5e5e5" } },
+};
+
 function createWindow(url) {
 	const win = new BrowserWindow({
 		width: 1440,
@@ -314,7 +320,8 @@ function createWindow(url) {
 				// height. Do not force the zoom-invariant native overlay to match
 				// the renderer's 60 CSS px bar: zooming out would cover its border.
 				// The renderer reserves the actual width via env(titlebar-area-*).
-				titleBarOverlay: { color: "#141414", symbolColor: "#e5e5e5" },
+				// Light by default like the app; the renderer recolors it on a theme change (lh:theme).
+				titleBarOverlay: WINDOW_THEME.light.overlay,
 				// Keep the custom bar alone; Alt reveals the native menu.
 				autoHideMenuBar: true,
 			}),
@@ -329,10 +336,10 @@ function createWindow(url) {
 		// the native window surface changes size before Chromium's compositor
 		// has a frame at the new size, and the gap shows the window's NATIVE
 		// background — Electron's default is white, glaring on a dark app.
-		// The app background (#141414) fills the lag instead. `show: false` +
+		// The app background fills the lag instead. `show: false` +
 		// ready-to-show is the same treatment for first paint: the window
 		// appears only once the page has actually rendered.
-		backgroundColor: "#141414",
+		backgroundColor: WINDOW_THEME.light.background,
 		show: false,
 		// Narrow-window behavior (owner, 2026-09-17): 640px is the floor —
 		// below it even a wrapped chrome row gets cramped and the chat header
@@ -743,6 +750,15 @@ async function main() {
 	// The renderer's first paint can race did-finish-load — it asks for
 	// the current factor itself (mirrors "lh:zoom" pushes).
 	ipcMain.handle("lh:zoom:get", (event) => BrowserWindow.fromWebContents(event.sender)?.webContents.getZoomFactor() ?? 1);
+	// The window chrome follows the app theme (appearance mode): the native
+	// min/max/close overlay and the resize-lag background.
+	ipcMain.on("lh:theme", (event, dark) => {
+		const win = BrowserWindow.fromWebContents(event.sender);
+		if (!win) return;
+		const theme = WINDOW_THEME[dark === true ? "dark" : "light"];
+		win.setBackgroundColor(theme.background);
+		if (process.platform !== "darwin") win.setTitleBarOverlay(theme.overlay);
+	});
 	ipcMain.on("lh:expand-window", (event) => {
 		const win = BrowserWindow.fromWebContents(event.sender);
 		if (!win) return;
