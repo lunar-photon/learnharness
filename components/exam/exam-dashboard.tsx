@@ -17,15 +17,22 @@ interface Dashboard {
 	tests: { id: string; kind: TestRecord["kind"]; status: TestRecord["status"]; createdAt: string; questions: number; score?: TestScore }[];
 }
 
-const btn = "rounded-sm border border-border bg-card px-3 py-1.5 font-ui text-xs text-foreground transition-colors hover:border-muted-foreground/50 hover:bg-accent cursor-pointer disabled:cursor-not-allowed disabled:opacity-50";
-const primary = "rounded-sm border border-foreground/40 bg-foreground px-3 py-1.5 font-ui text-xs text-background transition-opacity hover:opacity-90 cursor-pointer disabled:opacity-50";
+const btn = "lh-btn";
+const primary = "lh-btn lh-btn-primary";
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 
-function Tile({ label, value, detail, children }: { label: string; value: string; detail?: string; children?: React.ReactNode }) {
+const TONES = {
+	plain: "border-border bg-card",
+	orange: "border-[#fdcfa8] bg-[var(--lh-orange-tint)] text-[var(--lh-orange-text)] dark:border-transparent",
+	gold: "border-[#f5d77a] bg-[var(--lh-gold-tint)] text-[var(--lh-gold-text)] dark:border-transparent",
+	blue: "border-[#a9c9f2] bg-[var(--lh-blue-tint)] dark:border-transparent",
+} as const;
+
+function Tile({ label, value, detail, children, tone = "plain" }: { label: string; value: string; detail?: string; children?: React.ReactNode; tone?: keyof typeof TONES }) {
 	return (
-		<div className="rounded-sm border border-border bg-card p-3">
+		<div className={`rounded-2xl border-2 border-b-[6px] p-4 ${TONES[tone]}`}>
 			<div className="text-xs text-muted-foreground">{label}</div>
-			<div className="mt-1 text-lg font-medium tabular-nums">{value}</div>
+			<div className="mt-1 text-2xl font-black tabular-nums">{value}</div>
 			{children}
 			{detail && <div className="mt-1 text-xs text-muted-foreground">{detail}</div>}
 		</div>
@@ -35,11 +42,11 @@ function Tile({ label, value, detail, children }: { label: string; value: string
 /** A 0–1 meter with an optional interval band; the value is printed, so the bar is never the only carrier. */
 function Meter({ value, low, high, label }: { value: number; low?: number; high?: number; label: string }) {
 	return (
-		<div className="relative mt-2 h-2 rounded-full bg-muted" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(value * 100)} aria-label={label}>
+		<div className="relative mt-2 h-3 rounded-full bg-[var(--lh-edge)]" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(value * 100)} aria-label={label}>
 			{low !== undefined && high !== undefined && (
 				<div className="absolute inset-y-0 rounded-full bg-foreground/25" style={{ left: `${low * 100}%`, width: `${Math.max(0, high - low) * 100}%` }} />
 			)}
-			<div className="absolute inset-y-0 left-0 rounded-full bg-foreground" style={{ width: `${Math.min(1, value) * 100}%` }} />
+			<div className="absolute inset-y-0 left-0 rounded-full bg-[var(--lh-orange)]" style={{ width: `${Math.min(1, value) * 100}%` }} />
 		</div>
 	);
 }
@@ -47,7 +54,7 @@ function Meter({ value, low, high, label }: { value: number; low?: number; high?
 function Pips({ level }: { level: number }) {
 	return (
 		<span className="inline-flex gap-1" aria-label={`Mastery level ${level} of 5`} role="img">
-			{[1, 2, 3, 4, 5].map((k) => <span key={k} className={`size-2.5 rounded-full ${k <= level ? "bg-foreground" : "border border-muted-foreground/50"}`} />)}
+			{[1, 2, 3, 4, 5].map((k) => <span key={k} className={`size-4 rounded-md ${k <= level ? "bg-[var(--lh-purple)]" : "border-2 border-[var(--lh-edge)]"}`} />)}
 		</span>
 	);
 }
@@ -125,9 +132,10 @@ export function ExamDashboard({ examId }: { examId: string }) {
 				<Tile label="Today" value={`${daily.today} / ${daily.goal}`} detail={daily.today >= daily.goal ? "Daily goal met" : `${daily.goal - daily.today} questions to go`}>
 					<Meter value={daily.today / Math.max(1, daily.goal)} label="Daily goal progress" />
 				</Tile>
-				<Tile label="Streak" value={`${daily.streak} day${daily.streak === 1 ? "" : "s"}`} detail={daily.frozen.length ? `${daily.frozen.length} missed day covered by the freeze` : "One missed day a week is covered"} />
-				<Tile label="XP" value={String(summary.xp)} detail="Right answers and honest confidence earn the most" />
+				<Tile tone="orange" label="Streak" value={`${daily.streak} day${daily.streak === 1 ? "" : "s"}`} detail={daily.frozen.length ? `${daily.frozen.length} missed day covered by the freeze` : "One missed day a week is covered"} />
+				<Tile tone="gold" label="XP" value={String(summary.xp)} detail="Right answers and honest confidence earn the most" />
 				<Tile
+					tone="blue"
 					label="Readiness"
 					value={readiness.enough ? pct(readiness.expected!) : "—"}
 					detail={readiness.enough ? `Likely ${pct(readiness.low!)}–${pct(readiness.high!)} of the maximum, from ${readiness.probes} unseen past-paper questions` : `Needs 5 unseen past-paper questions (${readiness.probes} so far); full mocks include them`}

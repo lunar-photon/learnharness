@@ -4,9 +4,15 @@ import { useContext, useState } from "react";
 import { FEEDBACK_REASONS, FEEDBACK_REASON_LABELS, feedbackMessage, type FeedbackReason } from "@/src/core";
 import { ChatActionsContext } from "@/components/chat";
 
-const chip = "rounded-sm border px-2 py-0.5 font-ui text-xs transition-colors cursor-pointer";
-const idle = `${chip} border-border bg-card text-muted-foreground hover:border-muted-foreground/50 hover:bg-accent hover:text-foreground`;
-const on = `${chip} border-foreground/40 bg-accent text-foreground`;
+const idle = "lh-btn";
+
+/** One-tap follow-ups: sending one while a check is open pauses the check as a doubt. */
+const QUICK_REPLIES: readonly [string, string][] = [
+	["Why?", "Why does that step hold?"],
+	["Example", "Show me a concrete example of this."],
+	["Draw it", "Draw this as a picture or diagram."],
+	["Go deeper", "Go one level deeper on this."],
+];
 
 /**
  * "Did this explanation land?" under a teacher explanation (docs/agent-
@@ -49,10 +55,15 @@ export function ExplanationFeedback({ messageId }: { messageId: string }) {
 
 	return (
 		<div className="mt-1 flex flex-col gap-1.5" data-testid="explanation-feedback">
+			<div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Quick replies">
+				{QUICK_REPLIES.map(([label, text]) => (
+					<button key={label} type="button" className={idle} onClick={() => actions.sendText(text)}>{label}</button>
+				))}
+			</div>
 			<div className="flex items-center gap-1.5">
 				<span className="font-ui text-xs text-muted-foreground">Did this land?</span>
 				<button type="button" className={idle} onClick={() => void submit(true)}>Landed</button>
-				<button type="button" className={stage === "why" ? on : idle} aria-expanded={stage === "why"} onClick={() => setStage(stage === "why" ? "ask" : "why")}>
+				<button type="button" className={idle} aria-expanded={stage === "why"} onClick={() => setStage(stage === "why" ? "ask" : "why")}>
 					Didn't land
 				</button>
 			</div>
@@ -64,7 +75,7 @@ export function ExplanationFeedback({ messageId }: { messageId: string }) {
 								key={r}
 								type="button"
 								aria-pressed={reasons.includes(r)}
-								className={reasons.includes(r) ? on : idle}
+								className={idle}
 								onClick={() => setReasons((rs) => (rs.includes(r) ? rs.filter((x) => x !== r) : [...rs, r]))}
 							>
 								{FEEDBACK_REASON_LABELS[r]}
@@ -80,7 +91,7 @@ export function ExplanationFeedback({ messageId }: { messageId: string }) {
 							onKeyDown={(e) => e.key === "Enter" && void submit(false)}
 							className="min-w-0 flex-1 rounded-sm border border-border bg-card px-2 py-0.5 font-ui text-xs text-foreground"
 						/>
-						<button type="button" className={idle} onClick={() => void submit(false)}>Send</button>
+						<button type="button" className="lh-btn lh-btn-primary" onClick={() => void submit(false)}>Send</button>
 					</div>
 				</div>
 			)}

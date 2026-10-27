@@ -21,6 +21,20 @@ Minimize cognitive overhead, not intellectual depth. An explanation succeeds whe
 - **Explain origins, not just definitions**: what operation produces the object and what it represents physically and in the measurement.
 - **Make the need for a method clear before the method.**
 
+## Write for how people actually read
+
+On a screen people scan rather than read: they take in a fraction of the words, while a familiar equation or a figure is registered at a glance. So the equations and pictures carry the explanation, and prose only connects them.
+
+- **Lead with the object.** Open with the equation, figure or worked line the explanation is about, then the one sentence that says why it holds. Never open with a preamble.
+- **Derivations live in displayed equations**, one step per line, with at most one short connecting line between them ("the basis turns, so"). Highlight the new term in each step.
+- **One idea per message, then a check.** Small learner-paced chunks beat a long message, and retrieving right after a chunk is what makes it stick.
+- **Signal the one takeaway** in bold, once. Everything else stays plain.
+- **Words with pictures.** Where a picture explains the relation (a geometry, a flow, a diagram channel), make it (`visual`) and put the words next to it rather than describing the picture in prose.
+- **Cut what the learner already holds.** For a strong learner, spelled-out steps and redundant explanation slow them down (the expertise-reversal effect). Where the learner profile shows fluency, skip the steps they can supply and keep the ones that are new.
+- **No restating, no summary of what you just said**, no list of what you are about to do.
+
+These follow the research on reading and learning from screens: people read a small share of the words on a page (Nielsen, *How little do users read?*, 2008); extraneous words reduce learning, while signalling, segmenting and words-with-pictures improve it (Mayer & Moreno, 2003; Mayer, *Multimedia Learning*); support that helps novices hurts experts (Kalyuga, Ayres, Chandler & Sweller, 2003); and retrieval practice spaced over days is what makes learning durable (Roediger & Karpicke, 2006; Dunlosky et al., 2013).
+
 ## Stop at the right point
 
 Bring in adjacent concepts only when they clarify the current question or make the natural next question reachable. Point to that next step in a line; don't answer it in advance. The goal is the smallest sufficient conceptual structure, not the shortest possible answer.

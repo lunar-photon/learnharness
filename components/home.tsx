@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { HomePanel } from "@/components/home-panel";
 import { useRouter } from "next/navigation";
 import { CornerDownLeftIcon, DumbbellIcon, TrophyIcon } from "lucide-react";
 import { GraphView } from "@/components/graph-view";
@@ -199,6 +200,11 @@ export function Home({
 			    no app-region of its own: the strip's drag comes from the mask
 			    div above, and the toggle's lh-no-drag subtracts from it (it is
 			    later in the tree, so the subtraction sticks). */}
+			{/* The playful progress strip floats over the graph (the canvas stays draggable around it). */}
+			<div className="pointer-events-none absolute inset-x-0 top-0 px-4">
+				<HomePanel />
+			</div>
+
 			<header className="pointer-events-none absolute inset-x-0 top-0 flex items-center gap-2 px-3 py-2">
 				<div className="pointer-events-auto">
 					<SidebarToggle />

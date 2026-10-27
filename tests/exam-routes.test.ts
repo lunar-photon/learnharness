@@ -86,3 +86,22 @@ describe("exam routes", () => {
 		assert.equal(dash.tests.find((t: { id: string }) => t.id === "t1").score.score, 1.5);
 	});
 });
+
+describe("default exams", () => {
+	it("creates the shipped CGL exam once, quiz-ready, and never brings a deleted one back", async () => {
+		const { ensureDefaultExams } = await import("../src/server/exams.ts");
+		const { chatStore } = await import("../src/store/chats.ts");
+		const before = examStore.listExams().length;
+		ensureDefaultExams();
+		const cgl = examStore.listExams().find((e) => e.folder === "CGL" && e.name.includes("Maharashtra"));
+		assert.ok(cgl, "the default CGL exam exists");
+		assert.equal(chatStore.getChat(cgl.chatId)?.kind, "exam");
+		assert.equal(examStore.readPyqs(cgl.id).length, 98);
+		assert.deepEqual(examStore.readExtractions(cgl.id).map((e) => e.items), [98]);
+		ensureDefaultExams();
+		assert.equal(examStore.listExams().length, before + 1, "seeded once");
+		fs.rmSync(path.join(TMP_DATA, "exams", cgl.id), { recursive: true });
+		ensureDefaultExams();
+		assert.equal(examStore.listExams().length, before, "a deleted default stays deleted");
+	});
+});

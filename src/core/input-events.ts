@@ -25,7 +25,7 @@
  * turn rides one composition.
  */
 
-import type { QuestionAnswerData } from "./question-core.ts";
+import { doubtAnswer, type QuestionAnswerData } from "./question-core.ts";
 import type { LhMessage } from "./native-messages.ts";
 import {
 	activeProblemOf,
@@ -199,8 +199,15 @@ export function inputAppends(
 	input: ChatInput,
 ): LhMessage[] {
 	switch (input.type) {
-		case "text":
+		case "text": {
+			// Text while a question is open is a doubt: the question pauses (closed, never graded) and the doubt follows.
+			const pending = danglingQuestionOf(record.messages);
+			if (pending) {
+				const question = (pending.input as { question?: unknown } | null)?.question;
+				return [newAnswerResult(pending.toolCallId, pending.tool, doubtAnswer(toolQuestionKind(pending.tool), typeof question === "string" ? question : "")), newUserMessage(input.text)];
+			}
 			return [...dismissalConclusion(record), newUserMessage(input.text)];
+		}
 		case "answer": {
 			const pending = danglingQuestionOf(record.messages);
 			if (!pending || pending.toolCallId !== input.toolCallId) {

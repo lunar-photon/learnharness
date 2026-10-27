@@ -80,6 +80,7 @@ import { currentUserThinkingOpen, setAllUserThinkingOpen } from "@/components/th
 import { examIdForChat, slotsConfigured, type ChatKind, type ExamUpdate, type ModelsSettings } from "@/src/core";
 import { useSettingsSaved } from "@/components/settings-signal";
 import { ExplanationFeedback } from "@/components/explanation-feedback";
+import { DoubtLine } from "@/components/doubt-line";
 
 /** One width for everything: transcript, cards, and the bottom blob share this column. */
 /**
@@ -1182,7 +1183,8 @@ export function Chat({
 				sendText: (t: string) => {
 					void send({ type: "text", text: t });
 				},
-				canSendText: !busy && !pending && !activeProblem && !compacting,
+				// A message while a question is open is a doubt: it pauses the question (core/input-events.ts).
+				canSendText: !busy && !activeProblem && !compacting,
 				openSetup: () => setSetupOpen(true),
 			}}
 		>
@@ -1685,6 +1687,7 @@ export function Chat({
 							placeholder={nextReady ? "Ask anything, or press Enter for the next one." : undefined}
 						/>
 					}
+					onAskDoubt={(t) => void send({ type: "text", text: t })}
 					onSubmitAnswer={(output) => {
 						if (!pending) return;
 						// THE ANSWER IS THE QUESTION CALL'S TOOL RESULT (fork 1, owner
@@ -1869,6 +1872,7 @@ function DockOverlay({
 	pricing,
 	composer,
 	onSubmitAnswer,
+	onAskDoubt,
 	chatId,
 	onReserve,
 	plan,
@@ -1904,6 +1908,8 @@ function DockOverlay({
 	pricing?: SessionPricing;
 	composer: React.ReactNode;
 	onSubmitAnswer: (output: QuestionAnswerData) => void;
+	/** A doubt typed while a question is open (it pauses the question). */
+	onAskDoubt: (text: string) => void;
 	/** The model control's pass-through (the stats bar hosts it). */
 	chatId: string;
 	/** Reports the dock's settled height (block + gradient) — ChatView's
@@ -2338,6 +2344,7 @@ function DockOverlay({
 						className={mode === initialModeRef.current ? undefined : "dock-variant"}
 					>
 							{pending ? (
+								<>
 								<QuestionDock
 									toolName={pending.tool as "quiz" | "probe" | "ask_user_question" | "explain" | "recall"}
 									toolCallId={pending.toolCallId}
@@ -2353,6 +2360,8 @@ function DockOverlay({
 									dictationClaim={!revealPending}
 									compactionRunning={compactionRunning}
 								/>
+								{(expanded || !requiresReveal) && <DoubtLine onAsk={onAskDoubt} disabled={compactionRunning} />}
+								</>
 							) : practice ? (
 								<PracticeDock
 									problemCallId={practice.toolCallId}

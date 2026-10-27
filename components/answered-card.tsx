@@ -25,7 +25,7 @@ export function AnsweredCard({ answer: savedAnswer, input }: { answer: QuestionA
 	if (answer.dismissed) {
 		return (
 			<div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
-				<span className="font-medium">{answer.questionText}</span> — skipped
+				<span className="font-medium">{answer.questionText}</span> — {answer.doubt ? "paused to ask a doubt" : "skipped"}
 			</div>
 		);
 	}

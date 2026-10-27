@@ -12,8 +12,33 @@ import { ExamResult, type ExamResultData } from "@/components/exam/exam-result";
  */
 
 type View = { exam: ExamDefinition; test: TestRecord; secondsLeft: number };
-const btn = "rounded-sm border border-border bg-card px-3 py-1.5 font-ui text-xs text-foreground transition-colors hover:border-muted-foreground/50 hover:bg-accent cursor-pointer disabled:cursor-not-allowed disabled:opacity-50";
-const primary = "rounded-sm border border-foreground/40 bg-foreground px-3 py-1.5 font-ui text-xs text-background transition-opacity hover:opacity-90 cursor-pointer disabled:opacity-50";
+const btn = "lh-btn";
+const primary = "lh-btn lh-btn-primary";
+const confLabel = (c: number) => (c === 1 ? "Certain" : `${Math.round(c * 100)}%`);
+
+/** "How sure?" right where the answer was given: one tap, keys 1-4, Esc skips. */
+function ConfidencePopup({ onPick, onSkip }: { onPick: (c: number) => void; onSkip: () => void }) {
+	return (
+		<div
+			role="dialog"
+			aria-label="How sure are you?"
+			className="mt-2 flex flex-wrap items-center gap-2 rounded-2xl border-2 border-[var(--lh-gold)] bg-[var(--lh-gold-tint)] px-3 py-2"
+			onKeyDown={(e) => {
+				const n = Number(e.key);
+				if (n >= 1 && n <= CONFIDENCE_LEVELS.length) { e.preventDefault(); onPick(CONFIDENCE_LEVELS[n - 1]!); }
+				if (e.key === "Escape") { e.preventDefault(); onSkip(); }
+			}}
+		>
+			<span className="text-sm font-extrabold text-[var(--lh-gold-text)]">How sure?</span>
+			{CONFIDENCE_LEVELS.map((c, k) => (
+				<button key={c} type="button" className={btn} autoFocus={k === 0} onClick={() => onPick(c)}>
+					{confLabel(c)}<span className="sr-only"> (key {k + 1})</span>
+				</button>
+			))}
+			<button type="button" className="ml-auto text-xs font-bold text-muted-foreground underline-offset-2 hover:underline" onClick={onSkip}>Skip</button>
+		</div>
+	);
+}
 
 function clock(sec: number): string {
 	const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
@@ -45,6 +70,8 @@ export function ExamTest({ examId, testId }: { examId: string; testId: string })
 	const [left, setLeft] = useState(0);
 	const [alt, setAlt] = useState(false);
 	const [confirming, setConfirming] = useState(false);
+	/** The answer just given, awaiting its confidence: question id and option (-1 = numeric). */
+	const [asking, setAsking] = useState<{ q: string; at: number } | null>(null);
 	const [submitting, setSubmitting] = useState(false);
 	const base = `/api/exams/${examId}/tests/${testId}`;
 	const deadline = useRef(0);
@@ -212,6 +239,8 @@ export function ExamTest({ examId, testId }: { examId: string; testId: string })
 										className="w-40 rounded-sm border border-border bg-card px-2 py-1"
 										value={r?.value ?? ""}
 										onChange={(e) => void save(q.id, { value: e.target.value === "" ? undefined : Number(e.target.value) })}
+										onBlur={() => r?.value !== undefined && r.confidence === undefined && setAsking({ q: q.id, at: -1 })}
+										onKeyDown={(e) => e.key === "Enter" && r?.value !== undefined && setAsking({ q: q.id, at: -1 })}
 									/>
 								</label>
 							) : (
@@ -220,7 +249,8 @@ export function ExamTest({ examId, testId }: { examId: string; testId: string })
 									{options?.map((opt, i) => {
 										const checked = r?.choices?.includes(i) ?? false;
 										return (
-											<label key={i} className={`flex cursor-pointer items-start gap-2 rounded-sm border px-3 py-2 ${checked ? "border-foreground/50 bg-accent" : "border-border bg-card hover:bg-accent/60"}`}>
+											<div key={i}>
+											<label className={`flex cursor-pointer items-start gap-3 rounded-2xl border-2 border-b-4 px-4 py-3 text-base font-bold transition-colors ${checked ? "border-[var(--lh-blue)] bg-[var(--lh-blue-tint)]" : "border-[var(--lh-edge)] bg-card hover:bg-accent"}`}>
 												<input
 													type={q.type === "msq" ? "checkbox" : "radio"}
 													name={`q-${q.id}`}
@@ -228,24 +258,31 @@ export function ExamTest({ examId, testId }: { examId: string; testId: string })
 													checked={checked}
 													onChange={() => {
 														const choices = q.type === "msq" ? (checked ? (r?.choices ?? []).filter((c) => c !== i) : [...(r?.choices ?? []), i]) : [i];
-														void save(q.id, { choices });
+														// A new single answer needs its own confidence; a multi-select asks once.
+														void save(q.id, q.type === "msq" ? { choices } : { choices, confidence: undefined });
+														if (!checked && (q.type !== "msq" || r?.confidence === undefined)) setAsking({ q: q.id, at: i });
 													}}
 												/>
 												<span className="flex min-w-0 flex-1 gap-2"><span className="text-muted-foreground">{i + 1}.</span><span className="min-w-0 flex-1"><MessageResponse>{opt}</MessageResponse></span></span>
 											</label>
+											{asking?.q === q.id && asking.at === i && (
+												<ConfidencePopup onPick={(c) => { void save(q.id, { confidence: c }); setAsking(null); }} onSkip={() => setAsking(null)} />
+											)}
+											</div>
 										);
 									})}
 								</fieldset>
 							)}
-							<fieldset className="mb-6 flex flex-wrap items-center gap-2">
-								<legend className="mb-1 w-full text-xs text-muted-foreground">How sure are you?</legend>
-								{CONFIDENCE_LEVELS.map((c) => (
-									<label key={c} className={`cursor-pointer rounded-sm border px-2 py-1 text-xs has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-foreground ${r?.confidence === c ? "border-foreground/50 bg-accent" : "border-border bg-card"}`}>
-										<input type="radio" name={`conf-${q.id}`} className="sr-only" checked={r?.confidence === c} onChange={() => void save(q.id, { confidence: c })} />
-										{c === 1 ? "Certain" : `${Math.round(c * 100)}%`}
-									</label>
-								))}
-							</fieldset>
+							{asking?.q === q.id && asking.at === -1 && (
+								<ConfidencePopup onPick={(c) => { void save(q.id, { confidence: c }); setAsking(null); }} onSkip={() => setAsking(null)} />
+							)}
+							<p className="mb-6 mt-1 min-h-6 text-sm font-bold text-muted-foreground">
+								{answered(r) && asking?.q !== q.id && (
+									r?.confidence !== undefined
+										? <>Confidence: {confLabel(r.confidence)} · <button type="button" className="underline-offset-2 hover:underline" onClick={() => setAsking({ q: q.id, at: q.type === "numeric" ? -1 : (r.choices?.[0] ?? 0) })}>change</button></>
+										: <button type="button" className="underline-offset-2 hover:underline" onClick={() => setAsking({ q: q.id, at: q.type === "numeric" ? -1 : (r?.choices?.[0] ?? 0) })}>Add how sure you are (earns calibration XP)</button>
+								)}
+							</p>
 							<div className="mt-auto flex flex-wrap gap-2">
 								<button type="button" className={btn} disabled={index === 0} onClick={() => go(index - 1)}>Previous</button>
 								<button type="button" className={btn} onClick={() => void save(q.id, { choices: undefined, value: undefined, confidence: undefined })}>Clear</button>

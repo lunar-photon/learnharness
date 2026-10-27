@@ -1,0 +1,39 @@
+{
+	"name": "MPSC Combined Group B & C (Maharashtra CGL)",
+	"folder": "CGL",
+	"durationMin": 60,
+	"sections": [
+		{
+			"name": "General Ability Test (सामान्य क्षमता चाचणी)",
+			"questionCount": 100,
+			"types": [
+				"mcq"
+			],
+			"marks": {
+				"correct": 1,
+				"wrong": -0.25,
+				"unanswered": 0
+			},
+			"topics": [
+				"History (Modern India & Maharashtra)",
+				"Geography (India & Maharashtra)",
+				"Indian Polity",
+				"Economics",
+				"General Science",
+				"Current Affairs",
+				"Arithmetic & Reasoning"
+			]
+		}
+	],
+	"topics": [
+		"History (Modern India & Maharashtra)",
+		"Geography (India & Maharashtra)",
+		"Indian Polity",
+		"Economics",
+		"General Science",
+		"Current Affairs",
+		"Arithmetic & Reasoning"
+	],
+	"dailyGoal": 20,
+	"notes": "Single bilingual (Marathi/English) paper: 100 compulsory MCQs, 4 options each, 100 marks, 1 hour; a quarter of a question's marks deducted per wrong answer (2023 booklet, instruction 7). Bank: the 2023 Combined Prelim, series A, 98 questions whose answers match the official final key (Q19 and Q74 were cancelled)."
+}

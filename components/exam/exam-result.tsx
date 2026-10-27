@@ -12,7 +12,7 @@ export interface ExamResultData {
 	summary: ExamSummary;
 }
 
-const btn = "rounded-sm border border-border bg-card px-3 py-1.5 font-ui text-xs text-foreground transition-colors hover:border-muted-foreground/50 hover:bg-accent cursor-pointer disabled:opacity-50";
+const btn = "lh-btn lh-btn-primary";
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 
 function answerText(test: TestRecord, qid: string, answer: { choices?: number[]; value?: number }): string {
@@ -48,10 +48,17 @@ export function ExamResult({ data }: { data: ExamResultData }) {
 
 	return (
 		<div className="mx-auto max-w-3xl space-y-6 p-6 font-ui text-sm">
-			<header className="space-y-1">
-				<p className="text-muted-foreground">{exam.name} · {test.kind === "mock" ? "Mock test" : "Quiz"} result</p>
-				<h1 className="text-2xl font-medium tabular-nums">{score.score} <span className="text-base text-muted-foreground">/ {score.max}</span></h1>
-				<p className="text-muted-foreground">{score.correct} right · {score.wrong} wrong · {score.unanswered} unanswered, under the real marking.</p>
+			<header className="flex flex-wrap items-center gap-6 rounded-3xl border-2 border-b-[7px] border-[#9ed9b8] bg-[var(--lh-green-tint)] p-6 dark:border-transparent">
+				<svg width="120" height="120" viewBox="0 0 120 120" role="img" aria-label={`Score ${score.score} of ${score.max}`}>
+					<circle cx="60" cy="60" r="48" fill="var(--card)" stroke="var(--lh-edge)" strokeWidth="13" />
+					<circle cx="60" cy="60" r="48" fill="none" stroke="var(--lh-green)" strokeWidth="13" strokeLinecap="round" strokeDasharray={`${Math.max(0, score.score / Math.max(1, score.max)) * 301.6} 301.6`} transform="rotate(-90 60 60)" />
+					<text x="60" y="66" textAnchor="middle" fontWeight="900" fontSize="26" fill="currentColor">{score.score}</text>
+				</svg>
+				<div className="min-w-0 flex-1 space-y-1">
+					<p className="font-bold text-muted-foreground">{exam.name} · {test.kind === "mock" ? "Mock test" : "Quiz"} result</p>
+					<h1 className="text-3xl font-black tabular-nums">{score.score} <span className="text-lg text-muted-foreground">/ {score.max}</span></h1>
+					<p className="font-bold">{score.correct} right · {score.wrong} wrong · {score.unanswered} unanswered, under the real marking.</p>
+				</div>
 			</header>
 
 			<section aria-label="Progress" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -61,7 +68,7 @@ export function ExamResult({ data }: { data: ExamResultData }) {
 					["Today", `${summary.daily.today} / ${summary.daily.goal}`],
 					["Readiness", summary.readiness.enough ? pct(summary.readiness.expected!) : "Not enough evidence"],
 				].map(([label, value]) => (
-					<div key={label} className="rounded-sm border border-border bg-card p-3">
+					<div key={label} className="rounded-2xl border-2 border-b-[6px] border-border bg-card p-4">
 						<div className="text-xs text-muted-foreground">{label}</div>
 						<div className="mt-1 font-medium tabular-nums">{value}</div>
 					</div>
@@ -118,7 +125,7 @@ export function ExamResult({ data }: { data: ExamResultData }) {
 					return (
 						<article key={q.id} className="rounded-sm border border-border p-3">
 							<p className="mb-1 text-xs text-muted-foreground">
-								Q{i + 1} · {q.topics.join(", ")} · <span className={verdict ? "text-emerald-500" : verdict === false ? "text-destructive" : ""}>{verdict ? "Right" : verdict === false ? "Wrong" : "Unanswered"}</span>
+								Q{i + 1} · {q.topics.join(", ")} · <span className={verdict ? "text-[var(--lh-green)]" : verdict === false ? "text-destructive" : ""}>{verdict ? "Right" : verdict === false ? "Wrong" : "Unanswered"}</span>
 								{r?.confidence !== undefined ? ` · you said ${r.confidence === 1 ? "certain" : pct(r.confidence)}` : ""}
 								{q.origin === "pyq" ? " · real past-paper question" : ""}
 							</p>

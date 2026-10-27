@@ -150,6 +150,11 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
 			appliedNamesRef.current.add(name);
 		}
 	}, [key, vars]);
+	// The mode is a class: light (the playful theme) by default, dark on request.
+	const mode = resolveAppearance(delta).mode;
+	useEffect(() => {
+		document.documentElement.classList.toggle("dark", mode === "dark");
+	}, [mode]);
 
 	// One fetch per app load: the record (sanitized server-side) carries the
 	// delta; resolution happens here against the compiled factory.

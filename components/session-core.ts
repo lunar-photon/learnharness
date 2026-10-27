@@ -18,6 +18,8 @@ import type { ToolResultMessage } from "@earendil-works/pi-ai";
 import {
 	needsContinuation,
 	danglingQuestionOf,
+	doubtAnswer,
+	toolQuestionKind,
 	answeredCallIds,
 	measuredContextTokens,
 	newAnswerResult,
@@ -677,7 +679,15 @@ export class SessionModel {
 		// write-ahead will persist (inputAppends), with LOCAL ids so
 		// adoption can tell them from the record's absorbed copies.
 		const optimistic: LhMessage[] = [];
-		if (input.type === "text") optimistic.push({ ...newUserMessage(input.text), id: localId() });
+		if (input.type === "text") {
+			// A doubt asked while a question is open pauses it, exactly as the server's inputAppends does.
+			const open = danglingQuestionOf([...this.base, ...this.tail]);
+			if (open) {
+				const question = (open.input as { question?: unknown } | null)?.question;
+				optimistic.push({ ...newAnswerResult(open.toolCallId, open.tool, doubtAnswer(toolQuestionKind(open.tool), typeof question === "string" ? question : "")), id: localId() });
+			}
+			optimistic.push({ ...newUserMessage(input.text), id: localId() });
+		}
 		else if (input.type === "thinking") {
 			// The practice submissions (2026-10-04): the marker lands
 			// optimistically — the card renders from its details the

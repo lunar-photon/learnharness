@@ -1,9 +1,10 @@
 import { spawn } from "node:child_process";
 import * as fs from "node:fs";
+import * as path from "node:path";
 import { nanoid } from "nanoid";
 import { PATHS } from "../../config.ts";
-import { CONFIDENCE_LEVELS, type ExamDefinition, type TestRecord, type TestResponse } from "../core/contracts/exam.ts";
-import { attemptsOf, examSummary, isHeldOut, publicTest, scoreTest, secondsLeft, type ExamSummary, type TestScore } from "../core/exam.ts";
+import { CONFIDENCE_LEVELS, type ExamDefinition, type PyqItem, type TestRecord, type TestResponse } from "../core/contracts/exam.ts";
+import { attemptsOf, examIdForChat, examSummary, isHeldOut, publicTest, scoreTest, secondsLeft, type ExamSummary, type TestScore } from "../core/exam.ts";
 import { stores } from "./stores.ts";
 
 /**
@@ -157,4 +158,35 @@ export function openPyqFolder(): { path: string } {
 	const [cmd, args] = process.platform === "darwin" ? ["open", [PATHS.pyq]] : process.platform === "win32" ? ["explorer", [PATHS.pyq]] : ["xdg-open", [PATHS.pyq]];
 	spawn(cmd, args, { detached: true, stdio: "ignore" }).on("error", () => {}).unref();
 	return { path: PATHS.pyq };
+}
+
+/** Exams that ship with the app (defaults/exams/<name>/: exam.json without
+ *  id/chat, plus a checked pyq.jsonl), created once per data dir as a ready
+ *  exam-prep session. The marker keeps a deleted default from coming back. */
+const DEFAULTS_DIR = path.join(PATHS.root, "defaults", "exams");
+
+export function ensureDefaultExams(): void {
+	const marker = path.join(PATHS.exams, ".defaults.json");
+	let seeded: string[] = [];
+	try { seeded = JSON.parse(fs.readFileSync(marker, "utf-8")); } catch { /* first run */ }
+	let names: string[];
+	try { names = fs.readdirSync(DEFAULTS_DIR).filter((n) => fs.existsSync(path.join(DEFAULTS_DIR, n, "exam.json"))); } catch { return; }
+	const fresh = names.filter((n) => !seeded.includes(n));
+	if (!fresh.length) return;
+	for (const name of fresh) {
+		const template = JSON.parse(fs.readFileSync(path.join(DEFAULTS_DIR, name, "exam.json"), "utf-8")) as Omit<ExamDefinition, "id" | "chatId" | "createdAt">;
+		const chat = stores.chatStore.createChat(template.name, "exam");
+		const exam: ExamDefinition = { ...template, id: examIdForChat(chat.id), chatId: chat.id, createdAt: new Date().toISOString() };
+		stores.examStore.saveExam(exam);
+		const bankFile = path.join(DEFAULTS_DIR, name, "pyq.jsonl");
+		if (fs.existsSync(bankFile)) {
+			const items = fs.readFileSync(bankFile, "utf-8").split("\n").filter((l) => l.trim()).map((l) => JSON.parse(l) as PyqItem);
+			stores.examStore.appendPyqs(exam.id, items);
+			for (const file of [...new Set(items.map((i) => i.source.file))]) {
+				stores.examStore.recordExtraction(exam.id, { file, items: items.filter((i) => i.source.file === file).length, at: exam.createdAt, notes: "Shipped with the app, checked against the official final key." });
+			}
+		}
+	}
+	fs.mkdirSync(PATHS.exams, { recursive: true });
+	fs.writeFileSync(marker, JSON.stringify([...seeded, ...fresh]));
 }

@@ -468,6 +468,8 @@ export interface QuestionAnswerData {
 	committed?: string; // explain only (rendering): the model's committed answer
 	explanation?: string; // quiz only (rendering)
 	dismissed?: boolean;
+	/** Set with `dismissed`: the learner paused the question to ask a doubt (their next message). Never graded. */
+	doubt?: boolean;
 	answeredAt: string;
 }
 
@@ -776,7 +778,13 @@ export function dismissedAnswer(kind: QuestionKind, questionText: string): Quest
 	};
 }
 
+/** The learner paused this question to ask a doubt: closed like a dismissal, so nothing grades it. */
+export function doubtAnswer(kind: QuestionKind, questionText: string): QuestionAnswerData {
+	return { ...dismissedAnswer(kind, questionText), doubt: true };
+}
+
 export function compactAnswerForModel(ad: QuestionAnswerData): Record<string, unknown> {
+	if (ad.doubt) return { kind: ad.kind, pausedForDoubt: true, instruction: "The learner paused this question to ask the doubt in the next message. Answer the doubt briefly, leading with the equation or picture, then pose the check again: the same question, or a fresh one on the same link. A doubt is not a wrong answer." };
 	if (ad.dismissed) return { kind: ad.kind, dismissed: true };
 	const out: Record<string, unknown> = { kind: ad.kind };
 	if (ad.dontKnow) out.dontKnow = true;

@@ -26,3 +26,7 @@ Asks a single question and waits. He can always pick "Other" and type. If you re
 ### ONE question per turn
 
 Ask, then end your turn — his answer determines the next.
+
+### Doubts pause a question
+
+The learner can ask a doubt while a question is open. The question's result then says `pausedForDoubt`, and the doubt is the learner's next message. Answer the doubt briefly, leading with the equation or picture, then pose the check again: the same question, or a fresh one on the same link if the doubt showed the original was unclear. A paused question is never a wrong answer. Quick replies ("Why does that step hold?", "Show me a concrete example", "Draw this", "Go one level deeper") arrive the same way: answer exactly that, then continue.

@@ -283,7 +283,7 @@ export interface MdRenderingSettings {
 
 /** Appearance settings — mode, colors, type, markdown emphasis. */
 export interface AppearanceSettings {
-	/** "dark" | "light" (default dark). */
+	/** "dark" | "light" (default light: the playful theme). */
 	mode?: "dark" | "light";
 	/** The one user-chosen color; everything else derives per-mode in code.
 	 *  null = the mode's default background. */
@@ -404,7 +404,7 @@ export const FACTORY_SETTINGS: FactorySettings = {
 	version: CURRENT_SETTINGS_VERSION,
 	general: { autoUpdate: true },
 	appearance: {
-		mode: "dark",
+		mode: "light",
 		background: null, // the dark default (#141414) lives in the mode's derivation curve
 		fontFamily: null, // Source Sans 3
 		proseFontSize: 16,
