@@ -35,6 +35,8 @@ export const PATHS = {
 	/** Exam-prep state (docs/agent-driver-plan.md §6a): per exam, the
 	 * extracted question bank, tests, and attempts. */
 	exams: path.join(DATA_ROOT, "exams"),
+	/** Spaced review of the knowledge map: one Leitner card per node, and the review sets. */
+	reviews: path.join(DATA_ROOT, "reviews"),
 	/** Debug artifacts (env-gated): data/debug/provider-events/<chatId>.jsonl
 	 * raw provider stream recordings (src/agent/provider-events.ts). */
 	debug: path.join(DATA_ROOT, "debug"),

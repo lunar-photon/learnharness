@@ -11,6 +11,7 @@ import { graphStore } from "../store/graph.ts";
 import { jobStore } from "../store/jobs.ts";
 import { learnerStore } from "../store/learner.ts";
 import { examStore } from "../store/exams.ts";
+import { reviewStore } from "../store/reviews.ts";
 import { settingsStore } from "../store/settings.ts";
 import { resolveSettings, type EffectiveSettings } from "../core/settings-resolution.ts";
 import { CURRENT_SETTINGS_VERSION, type ModelSlot, type UserSettings } from "../core/settings.ts";
@@ -22,6 +23,7 @@ export const stores = {
 	jobStore,
 	learnerStore,
 	examStore,
+	reviewStore,
 	settingsStore,
 };
 

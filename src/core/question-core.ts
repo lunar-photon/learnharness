@@ -165,6 +165,10 @@ export type QuizFormat = (typeof QUIZ_FORMATS)[number];
 /** The slot marker in a fill_blank line. */
 export const BLANK = "___";
 
+/** The format field's schema, spelled out so its literal types survive. */
+export const quizFormatSchema = (description?: string) =>
+	Type.Union([Type.Literal("choice"), Type.Literal("next_step"), Type.Literal("fill_blank"), Type.Literal("order"), Type.Literal("spot_error")], description ? { description } : {});
+
 /** Normalize a persisted quiz `format`: absent or unknown is plain choice. */
 export function normalizeQuizFormat(raw: unknown): QuizFormat {
 	return typeof raw === "string" && (QUIZ_FORMATS as readonly string[]).includes(raw) ? (raw as QuizFormat) : "choice";
@@ -310,14 +314,12 @@ export const quizInputObject = Type.Object({
 			"For off-map checks use ask_user_question.",
 	}),
 	format: Type.Optional(
-		Type.Union(QUIZ_FORMATS.map((f) => Type.Literal(f)), {
-			description:
+		quizFormatSchema(
 				"How the check is answered. choice (default): pick an option. next_step: `lines` is the derivation or code so far, " +
 				"the options are candidate next lines. fill_blank: `lines` contain exactly one ___, the options are what fills it. " +
 				"order: the options are the lines of the correct derivation or code IN THE CORRECT ORDER (shown shuffled; the learner " +
 				"taps them into order) and correctAnswer lists every option value in that order. spot_error: the options are the lines " +
-				"of a worked derivation or snippet, in order, and correctAnswer is the one wrong line.",
-		}),
+				"of a worked derivation or snippet, in order, and correctAnswer is the one wrong line."),
 	),
 	lines: Type.Optional(
 		Type.Array(Type.String(), {

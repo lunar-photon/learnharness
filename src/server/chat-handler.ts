@@ -16,6 +16,7 @@ import { reconstructRequestCause, type LhMessage } from "../core/native-messages
 import { createJobRunner } from "../agent/subagents/runner.ts";
 import { createLearnerPipeline } from "../agent/subagents/learner.ts";
 import { createExamPipeline } from "../agent/subagents/exam.ts";
+import { createReviewPipeline } from "../agent/subagents/review.ts";
 import { examResultText, examSummary } from "../core/exam.ts";
 import { onTestSubmitted } from "./exams.ts";
 import { pendingFeedbackNote, profileSummary } from "../core/learner.ts";
@@ -146,6 +147,16 @@ export const examPipeline = createExamPipeline({
 		const lines = read.map((r) => `- ${r.file}: ${r.items} questions`).join("\n");
 		void deliverJobResult(newExamUpdateMessage(exam.chatId, { event: "papers-read", examId, items: total }, `The past papers you asked for are read:\n${lines}\n\nThe bank now holds ${total} questions. Tell the learner in a line, mention any extraction notes from exam_status worth knowing, and offer the quiz (exam_start_test).`));
 	},
+	engineFor: (role) => {
+		const engine = resolveEngine(role);
+		return engine && providerKeyPresent(engine.model.provider) && connectionBackgroundAllowed(engine.model.provider) ? engine : undefined;
+	},
+});
+
+/** Spaced review of the knowledge map (core/review.ts): its questions are written on the strong slot, in the background. */
+export const reviewPipeline = createReviewPipeline({
+	reviewStore: stores.reviewStore,
+	graph: stores.graphStore,
 	engineFor: (role) => {
 		const engine = resolveEngine(role);
 		return engine && providerKeyPresent(engine.model.provider) && connectionBackgroundAllowed(engine.model.provider) ? engine : undefined;

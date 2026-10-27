@@ -11,6 +11,7 @@
 
 import type { ExplanationFeedback, LearnerEntry } from "./contracts/learner.ts";
 import type { Attempt, ExamDefinition, PyqItem, TestRecord } from "./contracts/exam.ts";
+import type { ReviewCard, ReviewSet } from "./review.ts";
 import type { LhMessage } from "./native-messages.ts";
 import type {
 	ChatRecord,
@@ -265,4 +266,13 @@ export interface ExamStore {
 	saveTest(test: TestRecord): void;
 	readAttempts(examId: string): Attempt[];
 	appendAttempts(examId: string, attempts: readonly Attempt[]): void;
+}
+
+/** Spaced review (core/review.ts): the cards, one per map node, and the review sets. */
+export interface ReviewStore {
+	readCards(): ReviewCard[];
+	saveCards(cards: readonly ReviewCard[]): void;
+	listSets(): ReviewSet[];
+	getSet(id: string): ReviewSet | null;
+	saveSet(set: ReviewSet): void;
 }

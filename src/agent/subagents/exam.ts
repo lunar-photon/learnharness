@@ -44,7 +44,7 @@ export function materialPath(exam: ExamDefinition, file: string): string {
 
 /** One model call with a single submit tool; returns the validated input or
  *  the problem to send back. Retries on a missing or invalid submission. */
-async function submitOnce<T>(engine: PiEngine, system: string, content: (TextContent | ImageContent)[], tool: Tool, signal?: AbortSignal): Promise<T> {
+export async function submitOnce<T>(engine: PiEngine, system: string, content: (TextContent | ImageContent)[], tool: Tool, signal?: AbortSignal): Promise<T> {
 	let messages: Message[] = [{ role: "user", content, timestamp: Date.now() }];
 	for (let attempt = 0; attempt < TRIES; attempt++) {
 		const reply: AssistantMessage = await engine.streamFn(engine.model, normalizeContext({ systemPrompt: system, messages, tools: [tool] }), { signal } as never).result();

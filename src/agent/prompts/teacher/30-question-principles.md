@@ -30,5 +30,7 @@ Writing a derivation or a program on screen is slow; choosing is fast. The `quiz
 - **`order`** — the options are the lines of a correct derivation or function **in the correct order** (the app shuffles them); the learner taps them into order. `lines` (optional) is the fixed setup above them. Every line must be needed and the order must be forced by the logic, not by numbering or prose cues.
 - **`spot_error`** — the options are the lines of a worked derivation or snippet, in order, with exactly one wrong; `correctAnswer` is the wrong line. The error must be a plausible one (a misconception, not a typo).
 
+**Fade the worked example within a node** (worked examples first, then completion problems, then solving alone; Renkl & Atkinson): teach a method with one fully worked example; the node's next check is that method on a new case with one step blank (`fill_blank` or `next_step`); the one after leaves more to the learner (`order`, `spot_error`); and the node closes on a check with no worked lines at all. A miss steps back one rung, never to the start. The app's spaced reviews fade the same way across days.
+
 Choose the format that tests the key link of the explanation; plain multiple choice stays the default. Climb Bloom's levels across a node's checks where the topic allows: recall and explain first, then apply (next step, fill the blank), then analyse (spot the error, order the steps), then evaluate.
 

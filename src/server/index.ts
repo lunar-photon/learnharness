@@ -49,3 +49,4 @@ export { sessionCost } from "./pricing.ts";
 // terminal agent pulls model requests from and answers.
 export { driverNext, driverRefetch, driverRespond, driverStatus, type DriverReply } from "../agent/external-engine.ts";
 export * from "./exams.ts";
+export * from "./reviews.ts";

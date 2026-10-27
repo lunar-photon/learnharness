@@ -114,7 +114,7 @@ export function AnsweredCard({ answer: savedAnswer, input }: { answer: QuestionA
 						{ title: "Your order", seq: answer.answers.map((a) => a.index) },
 						...(answer.correct ? [] : [{ title: "Correct order", seq: answer.correctIndices ?? [] }]),
 					].map(({ title, seq }) => (
-						<ol key={title} className="m-0 flex list-none flex-col gap-1 p-0">
+						<ol key={title} className="m-0 flex list-none flex-col gap-1 p-0!">
 							<li className="font-black">{title}</li>
 							{seq.map((index, k) => {
 								const right = answer.correctIndices?.[k] === index;

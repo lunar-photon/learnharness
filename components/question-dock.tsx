@@ -614,7 +614,7 @@ function QuestionDockForm({
 							</div>
 						)}
 						{isOrder && (
-							<ol className="m-0 flex list-none flex-col gap-1 p-0" aria-label="Your order">
+							<ol className="m-0 flex list-none flex-col gap-1 p-0!" aria-label="Your order">
 								{seq.map((i, k) => (
 									<li key={qd.options[i]!.value}>
 										<button type="button" onClick={() => pickOption(i)} className="flex w-full items-start gap-2 rounded-lg bg-[var(--lh-blue-tint)] px-2 py-1 text-left" aria-label={`Step ${k + 1}, tap to take back`}>
