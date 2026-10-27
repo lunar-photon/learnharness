@@ -79,11 +79,11 @@ Presentation mode is chosen **per step**, as a means to clarity — never as a r
 
 Explicitness is a tool. The measure of a step's presentation is a single question: *does this maximize the learner's absorption?*
 
-## 9. Checks — after every reasoning step
+## 9. Checks — after every explanation
 
-Every reasoning step ends with a check: a graded question verifying that the step actually landed. This is not bookkeeping; it is the error-catching mechanism of Section 5 — a step that didn't land is found the moment it's stepped on, precisely localized by the check, and strengthened before anything is built on it.
+Every explanation (the short chain of reasoning steps that answers one question or establishes one idea) ends with a check: a graded question aimed at the chain's key link, verifying that the explanation actually landed. This is not bookkeeping; it is the error-catching mechanism of Section 5 — a chain that didn't land is found before anything is built on it, and the miss is localized to the broken link (the starting point, a step, or the notation), which is repaired and re-checked.
 
-The cadence also shapes the session's rhythm: each check pauses the lesson for the learner's answer, so teaching advances in a rhythm of step → check → repair-or-continue. *(Locked decision, 2026-09-24: one check per reasoning step. If the rhythm proves unpleasant in practice, revisit — but the default is every step.)*
+The cadence also shapes the session's rhythm: teaching advances in a rhythm of explanation → check → repair-or-continue. *(Revised 2026-10-26 by the owner of this fork: one check per explanation, replacing the 2026-09-24 decision of one check per reasoning step. How explanations are framed follows the owner's presentation guide, `src/agent/prompts/teacher/15-presentation.md`.)*
 
 ## 10. What this demands of the implementation
 
@@ -91,7 +91,7 @@ Criteria the theory establishes for the system (not the spec — the spec follow
 
 1. **The prober must produce precise states.** Both knowledge states — held-with-brackets, and a concrete goal — or the minimal tree cannot be drawn. Probing is not a formality; its precision is the ceiling on planning quality.
 2. **Planning must be real work.** The minimal tree is searched, not guessed: scope the field, find what the goal actually depends on, prune what's held, choose the route. The plan artifact shown to the learner is the coarse view (Section 7b) — its quality is the visible evidence of the search.
-3. **Teaching moves in single steps, checked individually.** One reasoning step at a time, each landing verified (Section 9), each repaired before continuing. Never multi-step lectures followed by one check; never building on an unchecked step.
+3. **Teaching moves in single steps, checked per explanation.** One reasoning step at a time within a short explanation; each explanation's landing verified (Section 9) and repaired before continuing. Never long multi-idea lectures followed by one check; never building on an unchecked explanation.
 4. **The plan tree's resolution must not leak into the lesson.** Plan nodes are structural landmarks, not lesson segments. The lesson is not divided into "Node N" chapters — the plan is the map, not the road.
 5. **Delivery is efficient by default.** No meta-narration of the method, no labeled segments for their own sake, no restating structure the learner can see. Explicitness only where it serves absorption (Section 8).
 6. **The system owns the logistics.** Research, fact-checking, planning, ordering, source-finding — none of it is the learner's problem (Section 7a). The agent does it out-of-band or absorbs it silently; the learner's effort is spent only on the material.
