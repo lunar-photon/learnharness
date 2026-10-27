@@ -229,6 +229,9 @@ export const ROLE_SLOT: Readonly<Record<ModelRole, ModelSlotName>> = {
 	learnerModeler: "cheap",
 	// Style extraction is judgment-heavy and rare: the strong tier.
 	explanationReviewer: "strong",
+	// Reading scanned papers needs vision; writing exam questions needs the strongest model.
+	pyqExtractor: "vision",
+	testGenerator: "strong",
 };
 
 /** General settings — app-level behavior. Version DISPLAY and plans login

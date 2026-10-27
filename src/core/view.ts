@@ -381,6 +381,10 @@ function projectMarker(marker: LhMarkerMessage, out: LhViewMessage[]): void {
 			});
 			return;
 		}
+		case "exam-update": {
+			out.push({ id: marker.id, role: "user", parts: [{ type: "data-exam-update", id: `eu_${marker.id}`, data: marker.details }] });
+			return;
+		}
 		case "probe-handoff": {
 			out.push({
 				id: marker.id,

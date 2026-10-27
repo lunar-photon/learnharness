@@ -10,6 +10,7 @@
  */
 
 import type { ExplanationFeedback, LearnerEntry } from "./contracts/learner.ts";
+import type { Attempt, ExamDefinition, PyqItem, TestRecord } from "./contracts/exam.ts";
 import type { LhMessage } from "./native-messages.ts";
 import type {
 	ChatRecord,
@@ -35,7 +36,7 @@ export interface ChatStore {
 	/** Create a session record (persisted immediately). */
 	/** Create a session record; kind "practice" marks a practice session
 	 *  (absent = teach, the default). */
-	createChat(title: string, kind?: "practice"): ChatRecord;
+	createChat(title: string, kind?: "practice" | "exam"): ChatRecord;
 	/** The full record, or null if unknown id / corrupt file. */
 	getChat(id: string): ChatRecord | null;
 	/** All sessions, newest activity first (the sidebar's list view). */
@@ -245,4 +246,23 @@ export interface LearnerStore {
 	writeExample(slug: string, markdown: string): string;
 	/** Directory of learner-sourced examples (the example tool's second source). */
 	examplesDir(): string;
+}
+
+/** The exam-prep store (contracts/exam.ts): data/exams/<examId>/ —
+ *  exam.json, pyq.jsonl (+ extractions.jsonl: papers already read),
+ *  tests/<testId>.json, attempts.jsonl. */
+export interface ExamStore {
+	listExams(): ExamDefinition[];
+	getExam(id: string): ExamDefinition | null;
+	saveExam(exam: ExamDefinition): void;
+	readPyqs(examId: string): PyqItem[];
+	appendPyqs(examId: string, items: readonly PyqItem[]): void;
+	/** Papers (PYQ-relative paths) already extracted, with how many items each gave. */
+	readExtractions(examId: string): { file: string; items: number; at: string; notes?: string }[];
+	recordExtraction(examId: string, entry: { file: string; items: number; at: string; notes?: string }): void;
+	listTests(examId: string): TestRecord[];
+	getTest(examId: string, testId: string): TestRecord | null;
+	saveTest(test: TestRecord): void;
+	readAttempts(examId: string): Attempt[];
+	appendAttempts(examId: string, attempts: readonly Attempt[]): void;
 }

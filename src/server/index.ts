@@ -48,3 +48,4 @@ export { sessionCost } from "./pricing.ts";
 // The external-agent driver (docs/agent-driver-plan.md): the queue the
 // terminal agent pulls model requests from and answers.
 export { driverNext, driverRefetch, driverRespond, driverStatus, type DriverReply } from "../agent/external-engine.ts";
+export * from "./exams.ts";

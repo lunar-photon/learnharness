@@ -19,3 +19,8 @@ xai-credentials.json*
 
 # dev-fresh launcher scratch (fresh-user sim): disposable per launch
 .fresh-data/
+
+# Exam material (docs/agent-driver-plan.md §6a): papers and keys are the
+# learner's local files, never committed — only the folder's README is.
+PYQ/*
+!PYQ/README.md

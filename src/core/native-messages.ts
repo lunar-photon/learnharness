@@ -68,6 +68,7 @@ export interface LhMarkerMessage {
 	customType:
 		| "graph-context"
 		| "probe-handoff"
+		| "exam-update"
 		| "subagent-steer"
 		| "subagent-abort"
 		| "plan-block"
@@ -213,6 +214,19 @@ export function newHandoffMessage(chatId: string): LhMarkerMessage {
 		details: { chatId },
 		timestamp: Date.now(),
 	};
+}
+
+/** What an exam-prep session's agent must hear about: a submitted test
+ *  (for the debrief) or papers finished reading (to offer the quiz). */
+export type ExamUpdate =
+	| { event: "test-submitted"; examId: string; testId: string; score: number; max: number; kind: string }
+	| { event: "papers-read"; examId: string; items: number };
+
+/** Delivered to the exam session through the wake pipeline; a test's id
+ *  is deterministic so re-delivery is idempotent. */
+export function newExamUpdateMessage(chatId: string, details: ExamUpdate, text: string): LhMarkerMessage {
+	const id = details.event === "test-submitted" ? `steer_exam_${details.testId}` : `steer_exam_papers_${details.examId}_${Date.now().toString(36)}`;
+	return { id, role: "custom", customType: "exam-update", content: text, display: true, details: { chatId, ...details }, timestamp: Date.now() };
 }
 
 /** The plan presentation block: pure UI history (a frozen snapshot), no
@@ -731,7 +745,7 @@ export function nativeInputCause(message: AgentMessage, history: readonly AgentM
 	if (message.role === "user") return "learner";
 	if (message.role === "system" || message.role === "assistant") return "neutral";
 	if (message.role === "custom") {
-		if (["probe-handoff", "subagent-steer", "subagent-abort"].includes(message.customType)) return "automatic";
+		if (["probe-handoff", "exam-update", "subagent-steer", "subagent-abort"].includes(message.customType)) return "automatic";
 		if (["practice-thinking", "practice-next"].includes(message.customType)) return "learner";
 		return ["graph-context", "plan-block", "problem-dismissed", "compaction"].includes(message.customType) ? "neutral" : "unrecognizable";
 	}

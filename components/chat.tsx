@@ -47,7 +47,7 @@ import { PlanBlock, PlanPopup, latestTree } from "@/components/plan-block";
 import { PlanMarginalia, planExists } from "@/components/plan-window";
 import { MermaidOverlay, SessionMermaidContext } from "@/components/session-overlay";
 import { AbortTurnDialog, type AbortMode } from "@/components/abort-turn-dialog";
-import { ArrowRightIcon, DumbbellIcon, WaypointsIcon } from "lucide-react";
+import { ArrowRightIcon, DumbbellIcon, TrophyIcon, WaypointsIcon } from "lucide-react";
 import type { PlanBlockData } from "@/src/core";
 import { QuestionDock } from "@/components/question-dock";
 import { SessionFind } from "@/components/session-find";
@@ -77,7 +77,7 @@ import {
 } from "@/src/core";
 import { ReadingThinkingField } from "@/components/reading-thinking";
 import { currentUserThinkingOpen, setAllUserThinkingOpen } from "@/components/thinking-block";
-import { slotsConfigured, type ModelsSettings } from "@/src/core";
+import { examIdForChat, slotsConfigured, type ChatKind, type ExamUpdate, type ModelsSettings } from "@/src/core";
 import { useSettingsSaved } from "@/components/settings-signal";
 import { ExplanationFeedback } from "@/components/explanation-feedback";
 
@@ -215,7 +215,7 @@ export function Chat({
 	/** The session kind (practice sessions, owner 2026-10-04): practice
 	 *  renders no phase chip (no probe→teach arc applies) and a Practice
 	 *  tag rides the header instead. */
-	kind?: "teach" | "practice";
+	kind?: ChatKind;
 	initialPrompt?: string;
 	/** A teacher turn is running server-side but attached to no client
 	 * (navigated away mid-turn, returned while in flight). */
@@ -1301,7 +1301,7 @@ export function Chat({
 					{/* Practice (owner, 2026-10-04): the coverage ring hides —
 				    practice never extracts, so an ever-filling ring with no
 				    run behind it would lie. */}
-					{kind !== "practice" && <CoverageRing chatId={chatId} refreshKey={coverageTick} />}
+					{kind !== "practice" && kind !== "exam" && <CoverageRing chatId={chatId} refreshKey={coverageTick} />}
 					{/* Practice sessions: no phase arc — a quiet Practice tag
 					    instead of the phase chip. */}
 					{kind === "practice" ? (
@@ -1314,6 +1314,16 @@ export function Chat({
 							<DumbbellIcon className="size-3" />
 							Practice
 						</span>
+					) : kind === "exam" ? (
+						<a
+							data-testid="phase-chip"
+							data-phase="exam"
+							href={`/exam/${examIdForChat(chatId)}`}
+							className="flex shrink-0 items-center gap-1 text-xs font-medium uppercase tracking-wide text-muted-foreground hover:text-foreground"
+						>
+							<TrophyIcon className="size-3" />
+							Exam prep · Dashboard
+						</a>
 					) : (
 						<PhaseChip phase={phases.at(-1) ?? "probe"} />
 					)}
@@ -1363,6 +1373,16 @@ export function Chat({
 										switch (part.type) {
 											case "data-graph-context":
 												return <GraphContextCard key={pi} data={part.data as GraphContextData} />;
+											case "data-exam-update": {
+												const u = part.data as ExamUpdate;
+												return (
+													<a key={pi} href={u.event === "test-submitted" ? `/exam/${u.examId}/test/${u.testId}` : `/exam/${u.examId}`} data-testid="exam-update-card" className="my-2 block rounded-sm border border-border bg-card px-3 py-2 font-ui text-xs text-foreground hover:bg-accent">
+														{u.event === "test-submitted"
+															? `${u.kind === "mock" ? "Mock test" : "Quiz"} submitted: ${u.score} / ${u.max}. View the result →`
+															: `Past papers read: ${u.items} questions in the bank. Open the dashboard →`}
+													</a>
+												);
+											}
 											case "data-compaction":
 												return <CompactionMomentDivider key={pi} data={part.data as CompactionDividerData} />;
 											case "data-compaction-cut":

@@ -1,6 +1,7 @@
 import type { Usage } from "@earendil-works/pi-ai";
 import {
 	createPracticeAgent,
+	createExamAgent,
 	createProberAgent,
 	createTeacherAgent,
 	type AgentBuildOptions,
@@ -14,6 +15,9 @@ import { SubscriptionRequestCycle, type SubscriptionDispatchLifecycle } from "..
 import { reconstructRequestCause, type LhMessage } from "../core/native-messages.ts";
 import { createJobRunner } from "../agent/subagents/runner.ts";
 import { createLearnerPipeline } from "../agent/subagents/learner.ts";
+import { createExamPipeline } from "../agent/subagents/exam.ts";
+import { examResultText, examSummary } from "../core/exam.ts";
+import { onTestSubmitted } from "./exams.ts";
 import { pendingFeedbackNote, profileSummary } from "../core/learner.ts";
 import { createExtractionPipeline } from "../agent/subagents/extraction.ts";
 import type { ModelRole } from "../../config.ts";
@@ -46,7 +50,7 @@ import { beginTurn, endTurn } from "./turn-liveness.ts";
 import { applyParkedDismissal } from "./dismissal-park.ts";
 import { registerTurn, rememberTurnFailure, unregisterTurn } from "./turn-runs.ts";
 import { persistTurn, triggerExtraction, TurnPersistenceError } from "./turn-service.ts";
-import { hasProbeDone, danglingQuestionOf } from "../core/native-messages.ts";
+import { hasProbeDone, danglingQuestionOf, newExamUpdateMessage } from "../core/native-messages.ts";
 import { composeInstructions } from "../agent/teacher-agent.ts";
 import { ensureCompacted, kickCompaction, effectiveThresholdTokens } from "./compaction.ts";
 import { catalogContextLimits, refreshConnectionCatalog } from "./model-catalog.ts";
@@ -129,6 +133,30 @@ function learnerContext(chatId: string, messages: readonly LhMessage[]): string 
 	const pending = pendingFeedbackNote(stores.learnerStore.readFeedback(), chatId, Math.max(0, ...teacherTimes), excerptOf);
 	return [profileSummary(stores.learnerStore.readEntries()), pending].filter(Boolean).join("\n\n");
 }
+
+/** The exam pipeline (docs/agent-driver-plan.md §6b): PYQ extraction and
+ *  test generation, in the background, on the vision and strong slots. */
+export const examPipeline = createExamPipeline({
+	examStore: stores.examStore,
+	// Papers finished reading: wake the exam session so it offers the quiz itself.
+	onPapersRead: (examId, read) => {
+		const exam = stores.examStore.getExam(examId);
+		if (!exam) return;
+		const total = stores.examStore.readPyqs(examId).length;
+		const lines = read.map((r) => `- ${r.file}: ${r.items} questions`).join("\n");
+		void deliverJobResult(newExamUpdateMessage(exam.chatId, { event: "papers-read", examId, items: total }, `The past papers you asked for are read:\n${lines}\n\nThe bank now holds ${total} questions. Tell the learner in a line, mention any extraction notes from exam_status worth knowing, and offer the quiz (exam_start_test).`));
+	},
+	engineFor: (role) => {
+		const engine = resolveEngine(role);
+		return engine && providerKeyPresent(engine.model.provider) && connectionBackgroundAllowed(engine.model.provider) ? engine : undefined;
+	},
+});
+
+// A submitted test wakes its exam session for the debrief.
+onTestSubmitted((exam, test, score) => {
+	const summary = examSummary(exam, stores.examStore.readAttempts(exam.id));
+	void deliverJobResult(newExamUpdateMessage(exam.chatId, { event: "test-submitted", examId: exam.id, testId: test.id, score: score.score, max: score.max, kind: test.kind }, examResultText(exam, test, score, summary)));
+});
 
 /** Fire-and-forget, like extraction; scripted test chats are fixtures. */
 export function triggerLearnerUpdate(chatId: string): void {
@@ -271,7 +299,7 @@ export async function handleChatInput(
 		noDispatch: (kind) => requestCycle?.noDispatch(kind),
 	};
 	let conversationEngine: PiEngine;
-	const conversationRole = record.kind === "practice" ? "practice" : hasProbeDone(record.messages) ? "teacher" : "prober";
+	const conversationRole = record.kind === "practice" || record.kind === "exam" ? record.kind : hasProbeDone(record.messages) ? "teacher" : "prober";
 	try { conversationEngine = piEngineForSpec(conversation, () => callPurpose.background, lifecycle, { role: conversationRole, chatId }); }
 	catch { return Response.json({ error: conversation.provider === "chatgpt" ? chatGPTStreamError("model catalog") : isSubscriptionProvider(conversation.provider) ? nativeSubscriptionError(conversation.provider, "model catalog") : "The selected model is unavailable." }, { status: 503 }); }
 	const modelIdForCompaction = `${conversationEngine.model.provider}:${conversationEngine.model.id}`;
@@ -468,6 +496,14 @@ export async function handleChatInput(
 					},
 					agentOpts,
 				)
+			: record.kind === "exam"
+			? createExamAgent(
+					{
+						exam: { chatId, examStore: stores.examStore, pipeline: examPipeline },
+						jobs: { chatId, jobStore: stores.jobStore, spawn: (job, input) => void jobRunner.runJob(job.id, input), searchAvailable },
+					},
+					agentOpts,
+				)
 			: teaching
 			? createTeacherAgent(
 					{
@@ -584,7 +620,7 @@ export async function handleChatInput(
 				// PRACTICE (owner, 2026-10-04): practice sessions write nothing —
 				// no extraction, no graph, no coverage (v1: the session itself
 				// is the deliverable).
-				if ((!requestCycle || requestCycle.dispatched) && record.kind !== "practice" && extractionEnabled(effective.graph)) {
+				if ((!requestCycle || requestCycle.dispatched) && record.kind !== "practice" && record.kind !== "exam" && extractionEnabled(effective.graph)) {
 					// Fresh per-turn read of the graph section's chunk budget
 					// (extraction-UX redesign, 2026-09-24): the trigger compares
 					// against it and the pipeline's batches share it.

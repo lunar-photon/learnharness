@@ -170,6 +170,71 @@ difficulty. Everything in this part serves that one goal.
   level that rises only on spaced, fresh-surface retests, and a readiness meter driven by held-out PYQ
   performance. Rewards track effort and real progress, never difficulty avoidance.
 
+## 6b. Exam preparation — detailed design (awaiting owner approval)
+
+**Material.** `PYQ/<exam>/` (repo root, contents git-ignored; `PATHS.pyq`) holds the learner's papers, keys and
+notes. `PYQ/CGL/` ships on this machine: MPSC Combined Group B & C papers + keys 2017–2026 (bilingual scans) and
+`RESOURCES.md`. Question papers have no text layer, so extraction is vision-based.
+
+**Session kind `exam`.** "Exam prep" on the new-session screen opens a chat with an exam agent
+(`prompts/exam/`), like Practice. The agent:
+1. Settles the exam: name, folder in `PYQ/`, pattern (sections, question types MCQ/MSQ/numeric, count, duration,
+   marking incl. negative marking), syllabus topics — from the folder's notes, asking only for what's missing.
+   Tool `exam_define` writes `data/exams/<id>/exam.json`.
+2. Builds the PYQ bank: one background `pyq_extract` job per paper (paired with its key by name) renders pages,
+   reads them with the vision model, and submits items `{year, paper, number, question (English; Marathi kept
+   as a second field when present), options, answer from the key ("#" = cancelled → skipped), topics,
+   difficulty 1–5, source file + page}` to `data/exams/<id>/pyq.jsonl`. Cached: a paper is extracted once.
+   With web search on, the agent may also look for more PYQs (source URL kept).
+   **Held out:** a deterministic 20% of items (by id hash) are never shown in teaching or generation; they are
+   the readiness probes.
+3. Shows the dashboard card and launches tests (`exam_start_test {kind: "quiz" | "mock"}`).
+
+**Tests** (`data/exams/<id>/tests/<testId>.json`).
+- *Quick quiz*: 10–20 questions, 10–25 min, weighted to weak topics, overconfident topics and retests of past
+  misses (fresh surface, ≥1 day later).
+- *Full mock*: the real pattern, length and timer; topic mix follows PYQ topic frequency; includes 2–3
+  held-out PYQs as readiness probes (each used once).
+- Generation (`test_generator` role, background): from the pattern, per-topic mastery, calibration gaps and
+  non-held-out PYQ exemplars for the chosen topics. Every question is at or above the matching PYQ's difficulty,
+  solved by the generator before it is posed (verifier role for numeric answers), and never a copy of a PYQ.
+  Difficulty is never lowered for a struggling learner: support comes from the lessons planned after the test.
+- **CBT page** `/exam/<id>/test/<testId>`: countdown timer (auto-submit at zero), question palette (not
+  visited / answered / marked for review / answered + marked), MCQ radio, MSQ checkboxes, numeric input, a
+  confidence choice per answer (50/70/90/100%), Save & next, Mark for review, Clear, Submit with confirmation.
+  Keyboard-operable; answers saved as they are given, so a reload resumes with the remaining time.
+
+**After submitting** — result page: score with the exam's marking, accuracy and time per topic, a calibration
+table (stated confidence vs actual accuracy, flagging over- and under-confidence), every question with the
+correct answer and worked solution, XP earned, streak, and the message: *"Your next lessons are being planned
+from these results, with one goal: raising your score in the real exam,"* listing the topics they will target
+with a "Start a lesson" button per topic (opens a teaching session seeded with the missed questions). Attempts
+feed the learner profile (misconceptions) and the next quiz's retests.
+
+**Progress, all derived from `attempts.jsonl` (nothing stored that can be recomputed):**
+- *Daily goal*: questions answered per day (default 20, settable). *Streak*: consecutive days meeting it; one
+  missed day per rolling 7 days is covered automatically (the freeze).
+- *XP* per answer: 1 for attempting + 2 if correct + up to 2 for calibration, `2·(1 − (c − y)²)` with
+  confidence c and correctness y. Confident-and-right earns most, honest "unsure" beats a confident wrong
+  answer, and guessing earns less on average than knowing.
+- *Topic mastery* 0–5: a recency-weighted Beta estimate of accuracy at PYQ level, mapped to levels. A level
+  rises only if the last rise was at least a day earlier (spaced) and on questions the learner has not seen.
+  A miss can lower it.
+- *Readiness meter*: estimated score on held-out PYQs (first attempts only), with its uncertainty, tracked
+  over time. Until enough probes exist it says "not enough evidence yet".
+
+**As built after the live run on PYQ/CGL (2026-10-27):** the exam agent has no `pdf` tool (it kept choosing
+the prose summary over `exam_extract_pyqs`) and composes only the shared fragments for tools it holds; papers
+finishing extraction wake the session (`exam-update`, `papers-read`) so it offers the quiz itself; extraction
+sends the key as images only and keeps the extractor's notes (e.g. a disputed official answer); per-topic
+results count each question once, under its main topic. Live result: the 2023 Prelim (40-page bilingual
+scan) gave 98 questions whose answers all match the official final key, series A; Q19 and Q74, cancelled in
+the key, were dropped.
+
+**Build order:** core contracts + pure progress maths (tests first) → exam store → exam agent + tools + PYQ
+extraction job → test generator role → CBT page → result page → dashboard + gamification → live run on CGL with
+a real agent.
+
 Owner decisions (2026-10-27): generic exam patterns (the learner describes types/time/marking once); PYQs
 from both agent collection and learner-supplied files; both short adaptive timed quizzes and full mocks;
 built right after phase 3.

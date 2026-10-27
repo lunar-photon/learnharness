@@ -15,6 +15,11 @@ import {
 	type TeacherToolContext,
 } from "./tools.ts";
 import { practiceTools, type PracticeToolContext } from "./tools/practice.ts";
+import { examTools, type ExamToolContext } from "./tools/exam.ts";
+import { jobTools, type JobToolContext } from "./tools/jobs.ts";
+import { readTool } from "./tools/read.ts";
+import { lsTool } from "./tools/ls.ts";
+import { findTool } from "./tools/find.ts";
 import { healToolRecord, withArgumentHeal } from "./tools/heal.ts";
 import { sendToUserTool } from "./tools/send-to-user.ts";
 import { quizInputObject, quizInputProblems } from "../core/question-core.ts";
@@ -49,7 +54,7 @@ import { usageWasAdmitted } from "./subscription-request-cycle.ts";
 
 /** Which agent's prompt directory to compose. Practice (2026-10-04)
  *  composes ONLY its own directory — see prompt-segments.ts. */
-export type AgentKind = "prober" | "teacher" | "practice";
+export type AgentKind = "prober" | "teacher" | "practice" | "exam";
 
 // P2 (2026-09-19): segment discovery + override resolution live in ONE
 // canonical place now — src/store/prompt-overrides.ts (listSourceSegments
@@ -89,6 +94,7 @@ const composedInstructions: Record<AgentKind, string> = {
 	prober: composeInstructions("prober"),
 	teacher: composeInstructions("teacher"),
 	practice: composeInstructions("practice"),
+	exam: composeInstructions("exam"),
 };
 
 // Money channel (wave 4): the chat-handler passes a per-turn collector;
@@ -346,8 +352,26 @@ export function createPracticeAgent(ctx: PracticeToolContext, opts: AgentBuildOp
 	return baseAgentOptions("practice", opts, Object.values(tools));
 }
 
+/** The EXAM agent (docs/agent-driver-plan.md §6b): settles the exam,
+ *  builds the PYQ bank, starts tests and debriefs them. It asks, browses
+ *  the learner's files, and may dispatch research and PDF jobs. */
+export function createExamAgent(ctx: { exam: ExamToolContext; jobs: JobToolContext }, opts: AgentBuildOptions = {}) {
+	// Only research: the pdf reader's prose brief was chosen over exam_extract_pyqs in live runs and fills no bank.
+	const { research } = jobTools(ctx.jobs);
+	const tools = opts.tools ?? healToolRecord({
+		...examTools(ctx.exam),
+		ask_user_question: askUserQuestionTool,
+		read: readTool,
+		ls: lsTool,
+		find: findTool,
+		...(research ? { research } : {}),
+	});
+	return baseAgentOptions("exam", opts, Object.values(tools));
+}
+
 export type ProberAgent = ReturnType<typeof createProberAgent>;
 export type TeacherAgent = ReturnType<typeof createTeacherAgent>;
 export type PracticeAgent = ReturnType<typeof createPracticeAgent>;
-export type TeachingAgent = ProberAgent | TeacherAgent | PracticeAgent;
+export type ExamAgent = ReturnType<typeof createExamAgent>;
+export type TeachingAgent = ProberAgent | TeacherAgent | PracticeAgent | ExamAgent;
 

@@ -29,6 +29,12 @@ export const PATHS = {
 	/** The learner profile (contracts/learner.ts): profile.jsonl,
 	 * feedback.jsonl, the pipeline cursor, and learner-sourced examples/. */
 	learner: path.join(DATA_ROOT, "learner"),
+	/** The learner's exam material (PYQ/README.md): one folder per exam of
+	 * papers, answer keys and pattern notes; read-only to the app. */
+	pyq: process.env.LH_PYQ_DIR ? path.resolve(process.env.LH_PYQ_DIR) : path.join(ROOT, "PYQ"),
+	/** Exam-prep state (docs/agent-driver-plan.md §6a): per exam, the
+	 * extracted question bank, tests, and attempts. */
+	exams: path.join(DATA_ROOT, "exams"),
 	/** Debug artifacts (env-gated): data/debug/provider-events/<chatId>.jsonl
 	 * raw provider stream recordings (src/agent/provider-events.ts). */
 	debug: path.join(DATA_ROOT, "debug"),
@@ -57,7 +63,9 @@ export type ModelRole =
 	| "extractor"
 	| "auditor"
 	| "learnerModeler"
-	| "explanationReviewer";
+	| "explanationReviewer"
+	| "pyqExtractor"
+	| "testGenerator";
 
 /**
  * The LIVE graph store (src/store/graph.ts) — owned by the app's extraction
