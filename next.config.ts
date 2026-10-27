@@ -72,6 +72,8 @@ const nextConfig: NextConfig = {
 			"node_modules/@puppeteer/browsers/lib/browser-data/**/*.js",
 			"node_modules/pdfjs-dist/legacy/**/*",
 			"node_modules/pdfjs-dist/standard_fonts/**/*",
+			// The scan-image decoders (JBIG2, JPEG 2000): without them scans render blank.
+			"node_modules/pdfjs-dist/wasm/**/*",
 			// Wave E (2026-10-10): pdf_render paints via @napi-rs/canvas — its
 			// platform binary (@napi-rs/canvas-<platform>-<arch>) is a dynamic
 			// optional-dep require the tracer cannot see. Builds run per-OS and

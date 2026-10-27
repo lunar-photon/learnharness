@@ -52,6 +52,12 @@ export function standardFontsDir(): string {
 	return path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "node_modules", "pdfjs-dist", "standard_fonts") + "/";
 }
 
+/** pdfjs v6 decodes JBIG2/JPEG 2000 scan images in WebAssembly; without this
+ *  the decoder fails to start and scanned pages render blank (2026-10-27). */
+export function pdfjsWasmDir(): string {
+	return path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "node_modules", "pdfjs-dist", "wasm") + "/";
+}
+
 async function openDocument(filePath: string) {
 	const pdfjs = await loadPdfjs();
 	const data = new Uint8Array(await fs.readFile(filePath));
@@ -59,7 +65,7 @@ async function openDocument(filePath: string) {
 	// workerSrc needed); teardown is the loading task's destroy().
 	// verbosity 0 = errors only — scanned PDFs (JBIG2 XObjects) otherwise
 	// flood the log with per-page warnings (live-smoke finding 2026-09-19).
-	const task = pdfjs.getDocument({ data, standardFontDataUrl: standardFontsDir(), verbosity: 0 });
+	const task = pdfjs.getDocument({ data, standardFontDataUrl: standardFontsDir(), wasmUrl: pdfjsWasmDir(), verbosity: 0 });
 	return { doc: await task.promise, task };
 }
 

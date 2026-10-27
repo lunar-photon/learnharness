@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { standardFontsDir } from "./pdf-ops";
+import { pdfjsWasmDir, standardFontsDir } from "./pdf-ops";
 
 /**
  * Verification engines for sub-agents: demos use the app's own Electron
@@ -488,7 +488,7 @@ async function renderPdfPages(
 	// Standard-font data as a directory path (live-smoke finding 2026-09-19:
 	// without it pdfjs renders non-embedded standard fonts via fallback);
 	// verbosity 0 = errors only (JBIG2 noise on scanned PDFs).
-	const loadingTask = pdfjs.getDocument({ data, standardFontDataUrl: standardFontsDir(), verbosity: 0 });
+	const loadingTask = pdfjs.getDocument({ data, standardFontDataUrl: standardFontsDir(), wasmUrl: pdfjsWasmDir(), verbosity: 0 });
 	const doc = await loadingTask.promise;
 	try {
 		const out: RenderedPdfPage[] = [];
