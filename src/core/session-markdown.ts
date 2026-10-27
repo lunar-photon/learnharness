@@ -78,7 +78,8 @@ function toolResultBody(result: ToolResultMessage, ctx?: MarkdownContext): { hea
 				dontKnow: boolean;
 				note: string;
 				text: string;
-				answers: string[];
+				/** Option answers as stored ({label, …}); plain strings in older fixtures. */
+				answers: (string | { label?: string })[];
 				other: string;
 				dismissed: boolean;
 		  }>
@@ -136,7 +137,7 @@ function toolResultBody(result: ToolResultMessage, ctx?: MarkdownContext): { hea
 		const question = typeof out?.questionText === "string" && out.questionText ? out.questionText : "(no question text)";
 		const body = [`**Q:** ${question}`];
 		const chosen = [
-			...(Array.isArray(out?.answers) ? out!.answers! : []),
+			...(Array.isArray(out?.answers) ? out!.answers!.map((a) => (typeof a === "string" ? a : a?.label ?? "")).filter(Boolean) : []),
 			...(typeof out?.other === "string" && out.other.trim() ? [out.other.trim()] : []),
 		];
 		if (typeof out?.text === "string" && out.text.trim()) body.push(`The learner answered: ${out.text.trim()}`);

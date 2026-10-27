@@ -120,6 +120,13 @@ describe("messageMarkdown", () => {
 		)!;
 		assert.match(chosen, /^### Question · r1$/m);
 		assert.match(chosen, /The learner chose: second, also the third/);
+		// The stored shape (question-core buildAnswer): option objects, not strings.
+		const stored = messageMarkdown(
+			result("r3", "a3", "ask_user_question", { questionText: "Which way?", answers: [{ label: "Cosmology", value: "cos", index: 1 }] }),
+			"r3",
+		)!;
+		assert.match(stored, /The learner chose: Cosmology/);
+		assert.doesNotMatch(stored, /object Object/);
 		const free = messageMarkdown(
 			result("r2", "a2", "ask_user_question", { questionText: "Why?", text: "because" }),
 			"r2",
