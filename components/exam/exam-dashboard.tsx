@@ -59,6 +59,7 @@ export function ExamDashboard({ examId }: { examId: string }) {
 	const [error, setError] = useState<string | null>(null);
 	const [starting, setStarting] = useState<string | null>(null);
 	const [goal, setGoal] = useState("");
+	const [folder, setFolder] = useState<string | null>(null);
 
 	const load = useCallback(async () => {
 		const res = await fetch(`/api/exams/${examId}`, { cache: "no-store" });
@@ -67,6 +68,8 @@ export function ExamDashboard({ examId }: { examId: string }) {
 		if (!res.ok) return setError(body.error);
 		setData(body);
 		setGoal(String(body.exam.dailyGoal));
+		const pyq = await fetch("/api/pyq", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null), () => null);
+		if (pyq?.path) setFolder(`${pyq.path}/${body.exam.folder}`);
 	}, [examId]);
 	useEffect(() => { void load(); }, [load]);
 
@@ -110,6 +113,12 @@ export function ExamDashboard({ examId }: { examId: string }) {
 				<button type="button" className={btn} disabled={starting !== null} onClick={() => void start("quiz")}>{starting === "quiz" ? "Writing…" : "Quick quiz"}</button>
 				<button type="button" className={primary} disabled={starting !== null} onClick={() => void start("mock")}>{starting === "mock" ? "Writing…" : "Full mock test"}</button>
 			</header>
+			{folder && (
+				<p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+					<span>Material folder: <code className="break-all">{folder}</code>. Add papers, keys or notes here and ask your session to read them.</span>
+					<button type="button" className={btn} onClick={() => void fetch("/api/pyq", { method: "POST" })}>Open folder</button>
+				</p>
+			)}
 			{error && <p className="text-destructive" role="alert">{error}</p>}
 
 			<section aria-label="Progress" className="grid grid-cols-2 gap-2 md:grid-cols-4">

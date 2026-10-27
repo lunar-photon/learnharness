@@ -11,7 +11,7 @@ import { createInterface } from "node:readline";
 import { describe, it } from "node:test";
 
 function startServer() {
-	const child = spawn(process.execPath, ["scripts/lh-mcp.mjs"], { env: { ...process.env, LH_PORT: "1" }, stdio: ["pipe", "pipe", "inherit"] });
+	const child = spawn(process.execPath, ["scripts/lh-mcp.mjs"], { env: { ...process.env, LH_PORT: "1", LH_DESKTOP_DIR: "/nonexistent/learnharness-test" }, stdio: ["pipe", "pipe", "inherit"] });
 	const replies = new Map<number, (msg: any) => void>();
 	createInterface({ input: child.stdout! }).on("line", (line) => {
 		const msg = JSON.parse(line);

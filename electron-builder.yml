@@ -99,6 +99,12 @@ extraResources:
     to: server
     filter:
       - "standalone/**/*"
+  # The learner's exam material as it is on the build machine (git-ignored
+  # papers included); the app copies it to userData/PYQ on first launch.
+  - from: PYQ
+    to: PYQ
+    filter:
+      - "**/*"
 mac:
   # The backend's --require runs before Next loads. Keep this resource
   # outside app.asar so early Node-mode loading needs no ASAR support.
@@ -187,8 +193,10 @@ publish:
   # from a private repo are impossible, and a token baked into the app
   # would be a leak. desktop:dist passes no --publish flag, so builds never
   # upload; publishing happens at release time (GH_TOKEN + --publish).
+  # This fork's own feed: the upstream feed would "update" a fork build into
+  # the upstream app. While the fork's repo is private, checks find nothing.
   - provider: github
-    owner: amosblomqvist
+    owner: lunar-photon
     repo: learnharness
     # All three CI jobs contribute assets; only the owner publishes it.
     releaseType: draft

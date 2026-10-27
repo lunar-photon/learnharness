@@ -31,6 +31,7 @@ const { createSubscriptions, loadSubscriptionSDK } = require("./subscriptions.cj
 const { attachSubscriptionChild, subscriptionControl } = require("./subscription-ipc.cjs");
 const { desktopAPIHeaders } = require("./desktop-api.cjs");
 const { openWebSubscriptionBrowser } = require("./web-subscription-browser.cjs");
+const { writeAgentConnection, removeAgentConnection, seedPyq } = require("./agent-connection.cjs");
 const { randomBytes } = require("node:crypto");
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
@@ -53,6 +54,8 @@ const PRODUCT_NAME = "LearnHarness";
 app.setName(PRODUCT_NAME);
 const AUTH_FILE = () => path.join(app.getPath("userData"), "auth.json");
 const DATA_DIR = () => path.join(app.getPath("userData"), "data");
+/** The learner's exam material (PYQ/README.md), seeded from the bundled copy on first launch. */
+const PYQ_DIR = () => path.join(app.getPath("userData"), "PYQ");
 
 /** The packaged standalone server (extraResources → Resources/server).
  *  In dev LH_DEV_URL short-circuits everything: no spawn, no packaging —
@@ -222,6 +225,9 @@ function startServer(port) {
 					LH_AUTH_FILE: AUTH_FILE(),
 					LH_DESKTOP_SERVER: "1",
 					LH_DESKTOP_API_SECRET: desktopAPISecret,
+					LH_PYQ_DIR: PYQ_DIR(),
+					// The terminal agent is the default model: unset slots run on it (docs/agent-driver-plan.md).
+					LH_AGENT_DRIVER: "1",
 				},
 				stdio: ["ignore", "pipe", "pipe", "ipc"],
 			},
@@ -641,6 +647,7 @@ async function main() {
 
 	// The child must not outlive us — cover every quit path.
 	app.on("before-quit", killServer);
+	app.on("before-quit", () => removeAgentConnection(app.getPath("userData")));
 	process.on("exit", killServer);
 	process.on("SIGHUP", killServer);
 
@@ -678,9 +685,11 @@ async function main() {
 		await subscriptions.ready;
 		log(`starting server: ${serverEntry()}`);
 		log(`data dir: ${DATA_DIR()}${fs.existsSync(AUTH_FILE()) ? " · auth.json: present" : " · auth.json: ABSENT (no BYOK keys yet)"}`);
+		if (seedPyq(path.join(process.resourcesPath, "PYQ"), PYQ_DIR())) log(`seeded the PYQ folder: ${PYQ_DIR()}`);
 		await startServer(new URL(url).port);
 		await waitUntilUp(url);
 		log(`server up: ${url}`);
+		log(`terminal-agent link: ${writeAgentConnection(app.getPath("userData"), { url, secret: desktopAPISecret })}`);
 	} else {
 		log(`dev mode: ${devUrl}`);
 	}

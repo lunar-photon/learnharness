@@ -12,7 +12,7 @@
  */
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
-import { openSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, openSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,6 +21,12 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PORT = Number(process.env.LH_PORT || 3517);
 const BASE = `http://127.0.0.1:${PORT}`;
 const POLL_MS = 45_000; // under every client's default tool timeout
+/** The desktop app's userData (Electron's per-platform default for "LearnHarness"); LH_DESKTOP_DIR overrides it. */
+const DESKTOP_DIR = process.env.LH_DESKTOP_DIR || (process.platform === "darwin"
+	? join(homedir(), "Library", "Application Support", "LearnHarness")
+	: process.platform === "win32"
+		? join(process.env.APPDATA || join(homedir(), "AppData", "Roaming"), "LearnHarness")
+		: join(process.env.XDG_CONFIG_HOME || join(homedir(), ".config"), "LearnHarness"));
 const VERSION = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).version;
 const PROTOCOLS = ["2025-06-18", "2025-03-26", "2024-11-05"];
 
@@ -71,15 +77,41 @@ const TOOLS = [
 	},
 ];
 
-async function api(path, init = {}) {
-	const res = await fetch(BASE + path, { ...init, headers: { "content-type": "application/json", ...init.headers } });
+const WEB = { base: BASE, headers: {}, desktop: false };
+
+/** A running desktop app, from the link file it writes (electron/agent-connection.cjs), or null. */
+function desktopLink() {
+	try {
+		const { url, secret, pid } = JSON.parse(readFileSync(join(DESKTOP_DIR, "agent-connection.json"), "utf8"));
+		process.kill(pid, 0); // throws if the app that wrote it is gone
+		return { base: url.replace(/\/$/, ""), headers: secret ? { "x-learnharness-desktop": secret } : {}, desktop: true };
+	} catch {
+		return null;
+	}
+}
+
+async function reachable(target) {
+	try {
+		const res = await fetch(`${target.base}/api/driver/status`, { headers: target.headers, signal: AbortSignal.timeout(2000) });
+		return res.status === 200;
+	} catch { return false; }
+}
+
+/** The desktop app when it is open, else the web server. Re-checked every call: the app may open or close. */
+async function target() {
+	const desktop = desktopLink();
+	return desktop && (await reachable(desktop)) ? desktop : WEB;
+}
+
+async function api(path, init = {}, t) {
+	t ??= await target();
+	const res = await fetch(t.base + path, { ...init, headers: { "content-type": "application/json", ...t.headers, ...init.headers } });
 	const body = res.status === 204 ? null : await res.text();
 	return { status: res.status, body: body ? JSON.parse(body) : null };
 }
 
 async function running() {
-	try { return (await api("/api/driver/status", { signal: AbortSignal.timeout(2000) })).status === 200; }
-	catch { return false; }
+	return reachable(await target());
 }
 
 function openBrowser(url) {
@@ -88,22 +120,54 @@ function openBrowser(url) {
 	spawn(cmd, args, { detached: true, stdio: "ignore" }).unref();
 }
 
+/** This fork's desktop build: LH_DESKTOP_APP, else the newest build in dist/ (npm run desktop:dist:linux). */
+function desktopApp() {
+	if (process.env.LH_DESKTOP_APP) return existsSync(process.env.LH_DESKTOP_APP) ? process.env.LH_DESKTOP_APP : null;
+	const dist = join(ROOT, "dist");
+	const mac = join(dist, "mac-arm64", "LearnHarness.app");
+	if (process.platform === "darwin") return existsSync(mac) ? mac : null;
+	if (process.platform === "win32") return existsSync(join(dist, "win-unpacked", "LearnHarness.exe")) ? join(dist, "win-unpacked", "LearnHarness.exe") : null;
+	try {
+		return readdirSync(dist).filter((f) => /^LearnHarness-.*\.AppImage$/.test(f)).map((f) => join(dist, f))
+			.sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)[0] ?? null;
+	} catch { return null; }
+}
+
 async function launch({ open = true } = {}) {
+	const t = await target();
+	if (t.desktop) return `Connected to the LearnHarness desktop app (${t.base}/). The learner works in its window; call lh_next.`;
+	let note = "";
+	const app = desktopApp();
+	if (app) {
+		const log = join(tmpdir(), "learnharness-desktop.log");
+		const out = openSync(log, "a");
+		const [cmd, args] = process.platform === "darwin" ? ["open", ["-a", app]] : [app, []];
+		spawn(cmd, args, { detached: true, stdio: ["ignore", out, out] }).on("error", () => {}).unref();
+		const deadline = Date.now() + 90_000;
+		while (Date.now() < deadline) {
+			const now = await target();
+			if (now.desktop) return `Started and connected to the LearnHarness desktop app (${now.base}/). The learner works in its window; call lh_next.`;
+			await new Promise((r) => setTimeout(r, 1000));
+		}
+		note = ` The desktop app (${app}) did not come up within 90 s, so the web app is used instead: is another LearnHarness app already open (only one runs at a time)? See ${log}.`;
+	} else {
+		note = " No desktop build was found, so the web app is used; build one with `npm run desktop:dist:linux`.";
+	}
 	const url = `${BASE}/`;
-	if (!(await running())) {
+	if (!(await reachable(WEB))) {
 		const log = join(tmpdir(), "learnharness-agent.log");
 		const out = openSync(log, "a");
 		const next = join(ROOT, "node_modules", "next", "dist", "bin", "next");
 		// Loopback only: the driver routes let the caller act as the teacher.
 		spawn(process.execPath, [next, "dev", "-H", "127.0.0.1", "-p", String(PORT)], { cwd: ROOT, env: { ...process.env, LH_AGENT_DRIVER: "1" }, detached: true, stdio: ["ignore", out, out] }).unref();
 		const deadline = Date.now() + 120_000;
-		while (!(await running())) {
+		while (!(await reachable(WEB))) {
 			if (Date.now() > deadline) throw new Error(`LearnHarness did not start within 120 s — see ${log}`);
 			await new Promise((r) => setTimeout(r, 1000));
 		}
 	}
 	if (open) openBrowser(url);
-	return `LearnHarness is running at ${url}. Ask the learner to start a session there with the "Agent" model, then call lh_next.`;
+	return `LearnHarness is running at ${url}.${note} Ask the learner to start a session there, then call lh_next.`;
 }
 
 function formatRequest(req) {
@@ -120,8 +184,9 @@ async function call(name, args = {}) {
 		case "lh_launch":
 			return launch(args);
 		case "lh_status": {
-			if (!(await running())) return `LearnHarness is not running. Call lh_launch.`;
-			return JSON.stringify({ url: `${BASE}/`, ...(await api("/api/driver/status")).body });
+			const t = await target();
+			if (!(await reachable(t))) return `LearnHarness is not running. Call lh_launch.`;
+			return JSON.stringify({ app: t.desktop ? "desktop" : "web", url: `${t.base}/`, ...(await api("/api/driver/status", {}, t)).body });
 		}
 		case "lh_next": {
 			if (!(await running())) return `LearnHarness is not running. Call lh_launch.`;
@@ -185,9 +250,12 @@ function setup() {
 		const file = join(homedir(), ".gemini", "antigravity-cli", "settings.json");
 		try {
 			const settings = JSON.parse(readFileSync(file, "utf8"));
-			const allow = (settings.permissions ??= {}).allow ??= [];
-			if (!allow.includes("mcp(learnharness)")) {
-				allow.push("mcp(learnharness)");
+			// agy's rule syntax is mcp(<server>/<tool>); "mcp(learnharness)" (written by an earlier setup) matches nothing.
+			const before = (settings.permissions ??= {}).allow ?? [];
+			const allow = before.filter((rule) => rule !== "mcp(learnharness)");
+			if (!allow.includes("mcp(learnharness/*)")) allow.push("mcp(learnharness/*)");
+			if (allow.length !== before.length || allow.some((rule, i) => rule !== before[i])) {
+				settings.permissions.allow = allow;
 				writeFileSync(file, JSON.stringify(settings, null, 2) + "\n");
 				console.log(`Allowed the learnharness tools in ${file}.`);
 			}

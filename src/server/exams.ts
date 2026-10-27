@@ -1,4 +1,7 @@
+import { spawn } from "node:child_process";
+import * as fs from "node:fs";
 import { nanoid } from "nanoid";
+import { PATHS } from "../../config.ts";
 import { CONFIDENCE_LEVELS, type ExamDefinition, type TestRecord, type TestResponse } from "../core/contracts/exam.ts";
 import { attemptsOf, examSummary, isHeldOut, publicTest, scoreTest, secondsLeft, type ExamSummary, type TestScore } from "../core/exam.ts";
 import { stores } from "./stores.ts";
@@ -141,4 +144,17 @@ export function testResult(examId: string, testId: string, now = Date.now()): Te
 	const test = testOrThrow(examId, testId);
 	if (test.status !== "submitted") throw new ExamError("Submit the test first", 409);
 	return { exam, test, score: scoreTest(test, exam), summary: examSummary(exam, stores.examStore.readAttempts(examId), now) };
+}
+
+/** Where the learner's exam material lives (PYQ/README.md): the repo's PYQ/ in the web app, userData/PYQ on desktop. */
+export function pyqFolder(): { path: string; exists: boolean } {
+	return { path: PATHS.pyq, exists: fs.existsSync(PATHS.pyq) };
+}
+
+/** Open that folder in the system file manager — the only path this ever opens. */
+export function openPyqFolder(): { path: string } {
+	fs.mkdirSync(PATHS.pyq, { recursive: true });
+	const [cmd, args] = process.platform === "darwin" ? ["open", [PATHS.pyq]] : process.platform === "win32" ? ["explorer", [PATHS.pyq]] : ["xdg-open", [PATHS.pyq]];
+	spawn(cmd, args, { detached: true, stdio: "ignore" }).on("error", () => {}).unref();
+	return { path: PATHS.pyq };
 }
