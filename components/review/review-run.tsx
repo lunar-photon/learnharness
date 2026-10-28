@@ -140,6 +140,10 @@ export function ReviewRun({ id }: { id: string }) {
 										<div className="lh-prose flex items-baseline gap-2 text-sm"><span className="shrink-0 font-bold">You:</span><ToolContentResponse>{labels(q, a.values).join(q.quiz.format === "order" ? " → " : ", ")}</ToolContentResponse></div>
 									)}
 									<div className="lh-prose flex items-baseline gap-2 text-sm"><span className="shrink-0 font-bold">Answer:</span><ToolContentResponse>{labels(q, key).join(q.quiz.format === "order" ? " → " : ", ")}</ToolContentResponse></div>
+									{!a.correct && (() => {
+										const traps = normalizeOptions(q.quiz.options).filter((o) => a.values.includes(o.value) && !key.includes(o.value) && o.misconception).map((o) => o.misconception);
+										return traps.length ? <div className="lh-prose rounded-xl bg-[var(--lh-coral-tint)] px-3 py-2 text-sm"><span className="font-black">The trap: </span><ToolContentResponse>{traps.join(" ")}</ToolContentResponse></div> : null;
+									})()}
 									<div className="lh-prose text-sm text-muted-foreground"><ToolContentResponse>{q.quiz.explanation}</ToolContentResponse></div>
 									{!a.correct && (
 										<div><button type="button" className="lh-btn" onClick={() => void explain(q)}>Explain this</button></div>

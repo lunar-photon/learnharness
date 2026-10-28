@@ -33,7 +33,7 @@ const reviewQuestion = Type.Object({
 	question: Type.String({ minLength: 1 }),
 	lines: Type.Optional(Type.Array(Type.String())),
 	language: Type.Optional(Type.String()),
-	options: Type.Array(Type.Object({ label: Type.String({ minLength: 1 }), value: Type.String({ minLength: 1 }) }), { minItems: 2 }),
+	options: Type.Array(Type.Object({ label: Type.String({ minLength: 1 }), value: Type.String({ minLength: 1 }), misconception: Type.Optional(Type.String()) }), { minItems: 2 }),
 	multiSelect: Type.Optional(Type.Boolean()),
 	explanation: Type.String({ minLength: 1 }),
 	correctAnswer: Type.Union([Type.String(), Type.Array(Type.String())]),

@@ -193,6 +193,12 @@ export function AnsweredCard({ answer: savedAnswer, input }: { answer: QuestionA
 
 			{answer.text && <div className="lh-prose mt-2 whitespace-pre-wrap">“{answer.text}”</div>}
 
+			{isQuiz && !answer.correct && answer.trap && (
+				<div data-testid="answered-trap" className="lh-prose mt-3 rounded-xl bg-[var(--lh-coral-tint)] px-3 py-2 text-sm">
+					<span className="font-black">The trap: </span>
+					<ToolContentResponse>{answer.trap}</ToolContentResponse>
+				</div>
+			)}
 			{/* The confidence record: a chip, quiz answers only, and only when one
 			    exists ("I don't know", explain, ask and old records carry none). */}
 			{isQuiz && answer.confidence != null && (

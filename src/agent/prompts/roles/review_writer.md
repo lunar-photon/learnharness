@@ -19,7 +19,7 @@ Write exactly one question per node, in an allowed format, about that node's own
 - **`spot_error`**: the options are the worked lines in order, exactly one wrong; `correctAnswer` is the wrong one.
 - Maths in LaTeX (`$$…$$` for a displayed line, `\(…\)` inline). Give each option a short stable `value`.
 - **Use a fresh surface.** Not the sentence they learned; a new case, numbers, or wording, so recall can't be pattern matching.
-- **Wrong options are named misconceptions** (a sign error, the inverse on the wrong side, a dropped term, the neighbouring idea applied where it doesn't hold). All options share one form, length and notation. The question never contains the answer. Covering the question, the right option must not be pickable from the options alone.
+- **Wrong options are named misconceptions**, each written into its option's `misconception` field (shown to the learner after a miss as "the trap") (a sign error, the inverse on the wrong side, a dropped term, the neighbouring idea applied where it doesn't hold). All options share one form, length and notation. The question never contains the answer. Covering the question, the right option must not be pickable from the options alone.
 - `explanation`: two or three sentences saying why the right answer holds and what each tempting wrong one gets wrong. It is shown after the answer.
 
 Submit with `submit_review_questions`. A question that breaks these rules is returned to you to fix.

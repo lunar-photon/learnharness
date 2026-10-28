@@ -10,6 +10,7 @@ This is the highest-leverage step; don't rush it. With his level and his goal in
 - What's the motivated discovery path from those truths to his goal? Where does each step come from — why would anyone reach for it?
 - Socratic or expository for each stretch, given the topic and his energy?
 - **Basis first, complications after.** Build and check the core idea completely before any refinement that depends on it. A complication (a practical correction, a special case, an estimator variant, the realistic version of an idealized result) is its own later node, never a side remark inside the basis it complicates. Example: for "how are \(N^{(0)}\) and \(N^{(1)}\) removed?", the order is what each bias is, then removing \(N^{(0)}\), then removing \(N^{(1)}\) by iteration (example 11), and only then data–simulation correlation and realization-dependent estimates.
+- **Concrete before abstract**: where the topic allows, a concrete node (a worked case, numbers, a picture) comes before the general one it motivates (concreteness fading, the research-moves file).
 - **Climb Bloom's levels** where the topic allows: a node is first understood (recall, explain in his words), then applied, then analysed (why it works, when it fails), and only then used to evaluate or build something. Plan the map so the early nodes are the ones he can understand and apply, and the analysis and evaluation sit on top of them.
 
 A good plan is what makes the teaching feel inevitable instead of arbitrary.

@@ -26,6 +26,8 @@ export interface QuizOption {
 	label: string;
 	value: string;
 	description?: string;
+	/** quiz only: the wrong idea a wrong option stands for — never shown before the answer. */
+	misconception?: string;
 }
 
 // ─── tool input schemas (the question contract) ─────────────────────────────
@@ -248,7 +250,12 @@ export const quizInputBase = Type.Object({
 		description:
 			"The single quiz question to ask. ONE question per turn: ask, then end your turn — the answer determines the next question.",
 	}),
-	options: Type.Array(Type.Object(quizOptionProps), {
+	options: Type.Array(Type.Object({
+		...quizOptionProps,
+		misconception: Type.Optional(
+			Type.String({ description: "For a WRONG option: the specific wrong idea that leads to it, in a sentence. Never shown before the answer; when the learner picks this option it comes back to you to refute." }),
+		),
+	}), {
 		minItems: 2,
 		description:
 			"REQUIRED. The answer options (2 or more) as a JSON ARRAY of option objects — never a " +
@@ -578,6 +585,8 @@ export interface QuestionAnswerData {
 	confidence?: number; // quiz only: the learner's stated probability (0-100, raw) that his selected answer is correct — never sent on "I don't know" (owner, 2026-10-01)
 	correct?: boolean; // quiz only
 	correctIndices?: number[]; // quiz only (rendering)
+	/** quiz only, on a wrong answer: the misconception(s) behind the picked option(s), for the refutation. */
+	trap?: string;
 	committed?: string; // explain only (rendering): the model's committed answer
 	explanation?: string; // quiz only (rendering)
 	dismissed?: boolean;
@@ -671,7 +680,7 @@ export function toggleOther(mode: SelectMode, sel: DockSelection): DockSelection
 // ─── options ────────────────────────────────────────────────────────────────
 
 export function normalizeOptions(
-	options: string | Array<{ label: string; value?: string; description?: string }> | undefined,
+	options: string | Array<{ label: string; value?: string; description?: string; misconception?: string }> | undefined,
 ): QuizOption[] {
 	const seen = new Set<string>();
 	// The persisted tool call can carry GLM's string-encoded options —
@@ -679,13 +688,14 @@ export function normalizeOptions(
 	// prepareArguments runs pre-validation (see parseOptionsIfString).
 	const coerced = parseOptionsIfString(options);
 	const list = Array.isArray(coerced)
-		? (coerced as Array<{ label: string; value?: string; description?: string }>)
+		? (coerced as Array<{ label: string; value?: string; description?: string; misconception?: string }>)
 		: [];
 	return list
 		.map((option) => ({
 			label: option.label.trim(),
 			value: option.value?.trim() || option.label.trim(),
 			description: option.description?.trim() || undefined,
+			...(option.misconception?.trim() ? { misconception: option.misconception.trim() } : {}),
 		}))
 		.filter((option) => {
 			if (option.label.length === 0) return false;
@@ -856,6 +866,10 @@ export function buildAnswer(qd: QuestionData, req: AnswerRequest, tool?: string)
 		const picked = base.answers.map((a) => a.index);
 		const key = qd.correctIndices ?? [];
 		base.correct = base.dontKnow ? false : ordered ? picked.length === key.length && picked.every((v, i) => v === key[i]) : isCorrect(picked, key);
+		if (!base.correct) {
+			const traps = base.answers.flatMap((a) => (key.includes(a.index) ? [] : [qd.options[a.index - 1]?.misconception ?? []].flat()));
+			if (traps.length) base.trap = traps.join(" ");
+		}
 		// The confidence slider rides on real quiz answers only — never on
 		// "I don't know" (no answer, no probability). Clamped defensively;
 		// the dock snaps to the grid, the record accepts any integer.
@@ -919,6 +933,7 @@ export function compactAnswerForModel(ad: QuestionAnswerData): Record<string, un
 	// incorrect and carries no confidence: both stay implicit.)
 	if (ad.correct !== undefined && !ad.dontKnow) out.correct = ad.correct;
 	if (ad.confidence !== undefined) out.confidence = ad.confidence;
+	if (ad.trap && ad.correct === false) out.misconception = ad.trap;
 	// Two DISTINCT thinking channels, clearly keyed so the model never
 	// conflates them (owner 2026-10-03): reasoning on the question vs
 	// thinking while reading the teaching. `note` is the pre-rename key —

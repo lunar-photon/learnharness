@@ -76,7 +76,7 @@ export interface ReviewQuiz {
 	format?: QuizFormat;
 	lines?: string[];
 	language?: string;
-	options: { label: string; value?: string }[];
+	options: { label: string; value?: string; misconception?: string }[];
 	multiSelect?: boolean;
 	explanation: string;
 	correctAnswer: string | string[];

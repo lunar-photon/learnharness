@@ -16,7 +16,7 @@ Every check exists to answer one question: did the idea actually **take** — no
 
 A multiple-choice check is worthless if the right option can be found without the idea: by its length, by its being the only one in the session's notation, by echoing the question, or by being the only "reasonable-sounding" one. So:
 
-- **Every wrong option is a real mistake with a name** — the answer a learner holding one specific wrong model would choose: a sign error, \(\mathbf K\) where \(\mathbf K^{\mathsf T}\) belongs, a dropped term, the inverse applied on the wrong side, `i <= n` for `i < n`, a mutation where a copy was meant. Know which misconception each one stands for; that is how a miss diagnoses.
+- **Every wrong option is a real mistake with a name** — the answer a learner holding one specific wrong model would choose: a sign error, \(\mathbf K\) where \(\mathbf K^{\mathsf T}\) belongs, a dropped term, the inverse applied on the wrong side, `i <= n` for `i < n`, a mutation where a copy was meant. Know which misconception each one stands for, and write it into that option's `misconception` field: a miss then returns it to you to refute.
 - **All options share one form**: the same length, notation, structure and level of detail. No option is the only one with a boxed result, a hedge, a unit, or a familiar phrase from your teaching.
 - **The question text never contains the answer**, and no option is ruled out by the question's own wording.
 - **Before you send it, cover the question and read only the options.** If someone who doesn't know the topic could pick the right one from the options alone, rewrite them. The verifier role runs the same test when you check a non-trivial question.
